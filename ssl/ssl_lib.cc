@@ -1402,6 +1402,20 @@ int SSL_get_tls_unique(const SSL *ssl, uint8_t *out, size_t *out_len,
   return 1;
 }
 
+int SSL_set_tls_hello_custom_session_id(SSL* ssl, const uint8_t* data, size_t len)
+{
+  if (ssl) {
+    InplaceVector<uint8_t, SSL_MAX_SSL_SESSION_ID_LENGTH> new_session_id;
+    for (size_t i = 0; i < len; i++) {
+      new_session_id.PushBack(data[i]);
+    }
+    ssl->use_custom_session_id = true;
+    ssl->custom_session_id = new_session_id;
+    return 1;
+  }
+  return 0;
+}
+
 static int set_session_id_context(CERT *cert, const uint8_t *sid_ctx,
                                   size_t sid_ctx_len) {
   if (!cert->sid_ctx.TryCopyFrom(Span(sid_ctx, sid_ctx_len))) {

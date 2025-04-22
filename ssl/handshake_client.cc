@@ -177,7 +177,7 @@ static bool ssl_write_client_cipher_list(const SSL_HANDSHAKE *hs, CBB *out,
   return CBB_flush(out);
 }
 
-bool ssl_write_client_hello_without_extensions(const SSL_HANDSHAKE *hs,
+bool ssl_write_client_hello_without_extensions(SSL_HANDSHAKE *hs,
                                                CBB *cbb,
                                                ssl_client_hello_type_t type,
                                                bool empty_session_id) {
@@ -192,6 +192,11 @@ bool ssl_write_client_hello_without_extensions(const SSL_HANDSHAKE *hs,
     return false;
   }
 
+  if (ssl->use_custom_session_id) {
+    // set custom session id
+    hs->session_id.clear();
+    hs->session_id = ssl->custom_session_id;
+  }
   // Do not send a session ID on renegotiation.
   if (!ssl->s3->initial_handshake_complete &&  //
       !empty_session_id &&                     //

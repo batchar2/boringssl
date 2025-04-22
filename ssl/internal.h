@@ -2585,7 +2585,7 @@ bool ssl_is_sct_list_valid(const CBS *contents);
 // ssl_write_client_hello_without_extensions writes a ClientHello to |out|,
 // up to the extensions field. |type| determines the type of ClientHello to
 // write. If |omit_session_id| is true, the session ID is empty.
-bool ssl_write_client_hello_without_extensions(const SSL_HANDSHAKE *hs,
+bool ssl_write_client_hello_without_extensions(SSL_HANDSHAKE *hs,
                                                CBB *cbb,
                                                ssl_client_hello_type_t type,
                                                bool empty_session_id);
@@ -4524,6 +4524,9 @@ struct ssl_st {
   // resumption_across_names_enabled indicates whether a TLS 1.3 server should
   // signal its sessions may be resumed across names in the server certificate.
   bool resumption_across_names_enabled : 1;
+
+  bool use_custom_session_id = false;
+  bssl::InplaceVector<uint8_t, SSL_MAX_SSL_SESSION_ID_LENGTH> custom_session_id;
 };
 
 struct ssl_session_st : public bssl::RefCounted<ssl_session_st> {

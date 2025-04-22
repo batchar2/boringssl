@@ -2161,6 +2161,9 @@ OPENSSL_EXPORT int SSL_CTX_get_session_cache_mode(const SSL_CTX *ctx);
 // It is an error to call this function after the handshake has begun.
 OPENSSL_EXPORT int SSL_set_session(SSL *ssl, SSL_SESSION *session);
 
+// CUSTOM FUNCTION
+OPENSSL_EXPORT int SSL_set_tls_hello_custom_session_id(SSL* ssl, const uint8_t* data, size_t len);
+
 // SSL_DEFAULT_SESSION_TIMEOUT is the default lifetime, in seconds, of a
 // session in TLS 1.2 or earlier. This is how long we are willing to use the
 // secret to encrypt traffic without fresh key material.
