@@ -122,7 +122,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 if(CMAKE_COMPILER_IS_GNUCXX OR CLANG)
   # Note clang-cl is odd and sets both CLANG and MSVC. We base our configuration
   # primarily on our normal Clang one.
-  set(C_CXX_FLAGS "-Werror -Wformat=2 -Wsign-compare -Wwrite-strings -Wvla -Wshadow -Wtype-limits -Wmissing-field-initializers")
+  set(C_CXX_FLAGS "-fno-strict-aliasing -Werror -Wformat=2 -Wsign-compare -Wwrite-strings -Wvla -Wshadow -Wtype-limits -Wmissing-field-initializers")
   if(MSVC)
     # clang-cl sets different default warnings than clang. It also treats -Wall
     # as -Weverything, to match MSVC. Instead -W3 is the alias for -Wall.
@@ -540,6 +540,10 @@ if(FIPS_DELOCATE)
   if(CLANG)
     # Clang warns when passing both -c (from CMake) and -S.
     target_compile_options(bcm_c_generated_asm PRIVATE "-Wno-unused-command-line-argument")
+  endif()
+  if(CFI)
+    # Delocate needs real assembly code so we need to disable CFI and LTO in the FIPS module.
+    target_compile_options(bcm_c_generated_asm PRIVATE "-fno-lto" "-fno-sanitize=cfi")
   endif()
 
   set(TARGET_FLAG "")

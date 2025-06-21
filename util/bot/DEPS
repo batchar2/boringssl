@@ -35,7 +35,7 @@ vars = {
   # infra/3pp/tools/cmake/linux-amd64
   'cmake_version': 'version:3@3.31.7.chromium.8',
   # infra/3pp/tools/go/linux-amd64
-  'go_version': 'version:3@1.24.2',
+  'go_version': 'version:3@1.24.3',
   # infra/3pp/tools/perl/windows-amd64
   'perl_version': 'version:3@5.38.2.2',
   # chrome_internal/third_party/sdk/windows, but if an update switches this to a
@@ -53,7 +53,7 @@ vars = {
 
   # Update to the latest revision of
   # https://chromium.googlesource.com/chromium/src/tools/clang
-  'tools_clang_revision': 'a7f7a7df1c3b38293f869dbdc74d494cb962bda7',
+  'tools_clang_revision': '92a5f60019f3a9ff63b9388d181fa65047377fb4',
 
   # The Android NDK cannot be updated until https://crbug.com/42290318 is fixed.
   # We rely on an older NDK to test building without NEON instructions as the baseline.
@@ -180,7 +180,6 @@ hooks = [
     'action': [ 'download_from_google_storage',
                 '--no_resume',
                 '--platform=win32',
-                '--no_auth',
                 '--bucket', 'chromium-tools',
                 '-s', 'boringssl/util/bot/nasm-win32.exe.sha1',
     ],

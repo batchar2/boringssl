@@ -117,9 +117,6 @@ var rsa2048KeyPEM []byte
 //go:embed rsa_1024_key.pem
 var rsa1024KeyPEM []byte
 
-//go:embed ecdsa_p224_key.pem
-var ecdsaP224KeyPEM []byte
-
 //go:embed ecdsa_p256_key.pem
 var ecdsaP256KeyPEM []byte
 
@@ -139,7 +136,6 @@ var (
 	rsa1024Key rsa.PrivateKey
 	rsa2048Key rsa.PrivateKey
 
-	ecdsaP224Key ecdsa.PrivateKey
 	ecdsaP256Key ecdsa.PrivateKey
 	ecdsaP384Key ecdsa.PrivateKey
 	ecdsaP521Key ecdsa.PrivateKey
@@ -176,7 +172,6 @@ func initKeys() {
 		pemBytes []byte
 		key      *ecdsa.PrivateKey
 	}{
-		{ecdsaP224KeyPEM, &ecdsaP224Key},
 		{ecdsaP256KeyPEM, &ecdsaP256Key},
 		{ecdsaP384KeyPEM, &ecdsaP384Key},
 		{ecdsaP521KeyPEM, &ecdsaP521Key},
@@ -216,7 +211,6 @@ var (
 	rsaCertificate       Credential
 	rsaChainCertificate  Credential
 	rsa1024Certificate   Credential
-	ecdsaP224Certificate Credential
 	ecdsaP256Certificate Credential
 	ecdsaP384Certificate Credential
 	ecdsaP521Certificate Credential
@@ -232,7 +226,6 @@ func initCertificates() {
 	}{
 		{"Test RSA-1024 Cert", &rsa1024Key, &rsa1024Certificate},
 		{"Test RSA-2048 Cert", &rsa2048Key, &rsaCertificate},
-		{"Test ECDSA P-224 Cert", &ecdsaP224Key, &ecdsaP224Certificate},
 		{"Test ECDSA P-256 Cert", &ecdsaP256Key, &ecdsaP256Certificate},
 		{"Test ECDSA P-384 Cert", &ecdsaP384Key, &ecdsaP384Certificate},
 		{"Test ECDSA P-521 Cert", &ecdsaP521Key, &ecdsaP521Certificate},
@@ -436,6 +429,9 @@ type connectionExpectations struct {
 	peerApplicationSettingsOld []byte
 	// echAccepted is whether ECH should have been accepted on this connection.
 	echAccepted bool
+	// serverNameAck, if not nil, is whether the server should have acknowledged
+	// the server name. This field is only checked in full handshakes.
+	serverNameAck *bool
 }
 
 type testCase struct {
@@ -907,6 +903,15 @@ func doExchange(test *testCase, config *Config, conn net.Conn, isResume bool, tr
 		if !bytes.Equal(expectations.quicTransportParamsLegacy, connState.QUICTransportParamsLegacy) {
 			return errors.New("Peer did not send expected legacy QUIC transport params")
 		}
+	}
+
+	// On resumption, the server's server_name extension is forbidden. Runner checks this in the
+	// TLS stack itself.
+	if !connState.DidResume && expectations.serverNameAck != nil && *expectations.serverNameAck != connState.ServerNameAck {
+		if connState.ServerNameAck {
+			return fmt.Errorf("tls: server unexpectedly acknowledged server_name extension")
+		}
+		return fmt.Errorf("tls: server did not acknowledge server_name extension")
 	}
 
 	if expectations.echAccepted {

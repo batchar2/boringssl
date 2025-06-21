@@ -345,6 +345,7 @@ boringssl_crypto_sources := \
   crypto/ec/hash_to_curve.cc \
   crypto/ecdh/ecdh.cc \
   crypto/ecdsa/ecdsa_asn1.cc \
+  crypto/ecdsa/ecdsa_p1363.cc \
   crypto/engine/engine.cc \
   crypto/err/err.cc \
   crypto/evp/evp.cc \
@@ -497,6 +498,7 @@ boringssl_crypto_sources := \
   crypto/x509/x_val.cc \
   crypto/x509/x_x509.cc \
   crypto/x509/x_x509a.cc \
+  crypto/xwing/xwing.cc \
   gen/crypto/err_data.cc
 
 boringssl_crypto_headers := \
@@ -587,7 +589,8 @@ boringssl_crypto_headers := \
   include/openssl/x509.h \
   include/openssl/x509_vfy.h \
   include/openssl/x509v3.h \
-  include/openssl/x509v3_errors.h
+  include/openssl/x509v3_errors.h \
+  include/openssl/xwing.h
 
 boringssl_crypto_internal_headers := \
   crypto/asn1/internal.h \
@@ -637,6 +640,7 @@ boringssl_crypto_internal_headers := \
   crypto/kyber/internal.h \
   crypto/lhash/internal.h \
   crypto/md5/internal.h \
+  crypto/mem_internal.h \
   crypto/obj/obj_dat.h \
   crypto/pem/internal.h \
   crypto/pkcs7/internal.h \
@@ -648,15 +652,17 @@ boringssl_crypto_internal_headers := \
   crypto/rsa/internal.h \
   crypto/spake2plus/internal.h \
   crypto/trust_token/internal.h \
-  crypto/x509/ext_dat.h \
   crypto/x509/internal.h \
+  third_party/fiat/bedrock_unverified_bareminimum.c.inc \
+  third_party/fiat/bedrock_unverified_platform.c.inc \
   third_party/fiat/curve25519_32.h \
   third_party/fiat/curve25519_64.h \
   third_party/fiat/curve25519_64_adx.h \
   third_party/fiat/curve25519_64_msvc.h \
   third_party/fiat/p256_32.h \
   third_party/fiat/p256_64.h \
-  third_party/fiat/p256_64_msvc.h
+  third_party/fiat/p256_64_msvc.h \
+  third_party/fiat/p256_bedrock.c.inc
 
 boringssl_crypto_sources_asm := \
   crypto/curve25519/asm/x25519-asm-arm.S \
@@ -716,6 +722,7 @@ boringssl_crypto_test_sources := \
   crypto/digest/digest_test.cc \
   crypto/dsa/dsa_test.cc \
   crypto/ecdh/ecdh_test.cc \
+  crypto/ecdsa/ecdsa_p1363_test.cc \
   crypto/err/err_test.cc \
   crypto/evp/evp_extra_test.cc \
   crypto/evp/evp_test.cc \
@@ -741,6 +748,7 @@ boringssl_crypto_test_sources := \
   crypto/kyber/kyber_test.cc \
   crypto/lhash/lhash_test.cc \
   crypto/md5/md5_test.cc \
+  crypto/mem_test.cc \
   crypto/mldsa/mldsa_test.cc \
   crypto/mlkem/mlkem_test.cc \
   crypto/obj/obj_test.cc \
@@ -763,9 +771,11 @@ boringssl_crypto_test_sources := \
   crypto/test/gtest_main.cc \
   crypto/thread_test.cc \
   crypto/trust_token/trust_token_test.cc \
-  crypto/x509/tab_test.cc \
   crypto/x509/x509_test.cc \
-  crypto/x509/x509_time_test.cc
+  crypto/x509/x509_time_test.cc \
+  crypto/xwing/xwing_test.cc \
+  third_party/fiat/bedrock_platform_test.cc \
+  third_party/fiat/bedrock_polyfill_platform.c.inc
 
 boringssl_crypto_test_data := \
   crypto/blake2/blake2b256_tests.txt \
@@ -971,13 +981,21 @@ boringssl_crypto_test_data := \
   third_party/wycheproof_testvectors/ecdh_secp256r1_test.txt \
   third_party/wycheproof_testvectors/ecdh_secp384r1_test.txt \
   third_party/wycheproof_testvectors/ecdh_secp521r1_test.txt \
+  third_party/wycheproof_testvectors/ecdsa_secp224r1_sha224_p1363_test.txt \
   third_party/wycheproof_testvectors/ecdsa_secp224r1_sha224_test.txt \
+  third_party/wycheproof_testvectors/ecdsa_secp224r1_sha256_p1363_test.txt \
   third_party/wycheproof_testvectors/ecdsa_secp224r1_sha256_test.txt \
+  third_party/wycheproof_testvectors/ecdsa_secp224r1_sha512_p1363_test.txt \
   third_party/wycheproof_testvectors/ecdsa_secp224r1_sha512_test.txt \
+  third_party/wycheproof_testvectors/ecdsa_secp256r1_sha256_p1363_test.txt \
   third_party/wycheproof_testvectors/ecdsa_secp256r1_sha256_test.txt \
+  third_party/wycheproof_testvectors/ecdsa_secp256r1_sha512_p1363_test.txt \
   third_party/wycheproof_testvectors/ecdsa_secp256r1_sha512_test.txt \
+  third_party/wycheproof_testvectors/ecdsa_secp384r1_sha384_p1363_test.txt \
   third_party/wycheproof_testvectors/ecdsa_secp384r1_sha384_test.txt \
+  third_party/wycheproof_testvectors/ecdsa_secp384r1_sha512_p1363_test.txt \
   third_party/wycheproof_testvectors/ecdsa_secp384r1_sha512_test.txt \
+  third_party/wycheproof_testvectors/ecdsa_secp521r1_sha512_p1363_test.txt \
   third_party/wycheproof_testvectors/ecdsa_secp521r1_sha512_test.txt \
   third_party/wycheproof_testvectors/eddsa_test.txt \
   third_party/wycheproof_testvectors/hkdf_sha1_test.txt \

@@ -143,66 +143,6 @@ TEST(MLDSATest, Basic65) {
                  BCM_mldsa65_marshal_private_key>();
 }
 
-// These are the wrapper functions needed for `MLDSABasicTest`. ML-DSA-87 isn't
-// publicly exposed yet, so they are included here. It's good to exercise the
-// ML-DSA-65 wrapper functions so that they aren't untested (even if they are
-// quite trivial) thus `MLDSABasicTest` is done this way around.
-
-struct MLDSA87_private_key {
-  BCM_mldsa87_private_key priv;
-};
-
-struct MLDSA87_public_key {
-  BCM_mldsa87_public_key pub;
-};
-
-static int MLDSA87_generate_key(
-    uint8_t out_encoded_public_key[BCM_MLDSA87_PUBLIC_KEY_BYTES],
-    uint8_t out_seed[MLDSA_SEED_BYTES],
-    struct MLDSA87_private_key *out_private_key) {
-  return bcm_success(BCM_mldsa87_generate_key(
-      out_encoded_public_key, out_seed,
-      reinterpret_cast<BCM_mldsa87_private_key *>(out_private_key)));
-}
-
-static int MLDSA87_private_key_from_seed(
-    struct MLDSA87_private_key *out_private_key, const uint8_t *seed,
-    size_t seed_len) {
-  if (seed_len != BCM_MLDSA_SEED_BYTES) {
-    return 0;
-  }
-  return bcm_success(BCM_mldsa87_private_key_from_seed(
-      reinterpret_cast<BCM_mldsa87_private_key *>(out_private_key), seed));
-}
-
-static int MLDSA87_sign(
-    uint8_t out_encoded_signature[BCM_MLDSA87_SIGNATURE_BYTES],
-    const struct MLDSA87_private_key *private_key, const uint8_t *msg,
-    size_t msg_len, const uint8_t *context, size_t context_len) {
-  return bcm_success(BCM_mldsa87_sign(
-      out_encoded_signature,
-      reinterpret_cast<const BCM_mldsa87_private_key *>(private_key), msg,
-      msg_len, context, context_len));
-}
-
-static int MLDSA87_verify(const struct MLDSA87_public_key *public_key,
-                          const uint8_t *signature, size_t signature_len,
-                          const uint8_t *msg, size_t msg_len,
-                          const uint8_t *context, size_t context_len) {
-  if (context_len > 255 || signature_len != BCM_MLDSA87_SIGNATURE_BYTES) {
-    return 0;
-  }
-  return bcm_success(BCM_mldsa87_verify(
-      reinterpret_cast<const BCM_mldsa87_public_key *>(public_key), signature,
-      msg, msg_len, context, context_len));
-}
-
-static int MLDSA87_parse_public_key(struct MLDSA87_public_key *public_key,
-                                    CBS *in) {
-  return bcm_success(BCM_mldsa87_parse_public_key(
-      reinterpret_cast<BCM_mldsa87_public_key *>(public_key), in));
-}
-
 TEST(MLDSATest, Basic87) {
   MLDSABasicTest<MLDSA87_private_key, MLDSA87_public_key,
                  BCM_MLDSA87_PUBLIC_KEY_BYTES, BCM_MLDSA87_SIGNATURE_BYTES,
@@ -243,6 +183,54 @@ TEST(MLDSATest, SignatureIsRandomized) {
                            encoded_signature2.size(), kMessage,
                            sizeof(kMessage), nullptr, 0),
             1);
+}
+
+TEST(MLDSATest, PrehashedSignatureVerifies) {
+  std::vector<uint8_t> encoded_public_key(MLDSA65_PUBLIC_KEY_BYTES);
+  auto priv = std::make_unique<MLDSA65_private_key>();
+  uint8_t seed[MLDSA_SEED_BYTES];
+  EXPECT_TRUE(
+      MLDSA65_generate_key(encoded_public_key.data(), seed, priv.get()));
+
+  auto pub = std::make_unique<MLDSA65_public_key>();
+  CBS cbs = CBS(encoded_public_key);
+  ASSERT_TRUE(MLDSA65_parse_public_key(pub.get(), &cbs));
+
+  std::vector<uint8_t> encoded_signature(MLDSA65_SIGNATURE_BYTES);
+  static const uint8_t kMessage[] = {'H', 'e', 'l', 'l', 'o', ' ',
+                                     'w', 'o', 'r', 'l', 'd'};
+
+  MLDSA65_prehash prehash_state;
+  EXPECT_TRUE(MLDSA65_prehash_init(&prehash_state, pub.get(), nullptr, 0));
+  MLDSA65_prehash_update(&prehash_state, kMessage, sizeof(kMessage));
+  uint8_t representative[MLDSA_MU_BYTES];
+  MLDSA65_prehash_finalize(representative, &prehash_state);
+  EXPECT_TRUE(MLDSA65_sign_message_representative(encoded_signature.data(),
+                                                  priv.get(), representative));
+
+  EXPECT_EQ(MLDSA65_verify(pub.get(), encoded_signature.data(),
+                           encoded_signature.size(), kMessage, sizeof(kMessage),
+                           nullptr, 0),
+            1);
+
+  // Updating in multiple chunks also works.
+  for (size_t i = 0; i <= sizeof(kMessage); ++i) {
+    for (size_t j = i; j <= sizeof(kMessage); ++j) {
+      EXPECT_TRUE(MLDSA65_prehash_init(&prehash_state, pub.get(), nullptr, 0));
+      MLDSA65_prehash_update(&prehash_state, kMessage, i);
+      MLDSA65_prehash_update(&prehash_state, kMessage + i, j - i);
+      MLDSA65_prehash_update(&prehash_state, kMessage + j,
+                             sizeof(kMessage) - j);
+      MLDSA65_prehash_finalize(representative, &prehash_state);
+      EXPECT_TRUE(MLDSA65_sign_message_representative(
+          encoded_signature.data(), priv.get(), representative));
+
+      EXPECT_EQ(MLDSA65_verify(pub.get(), encoded_signature.data(),
+                               encoded_signature.size(), kMessage,
+                               sizeof(kMessage), nullptr, 0),
+                1);
+    }
+  }
 }
 
 TEST(MLDSATest, PublicFromPrivateIsConsistent) {

@@ -21,9 +21,7 @@
 #include <openssl/asn1.h>
 #include <openssl/bytestring.h>
 #include <openssl/err.h>
-#include <openssl/lhash.h>
 #include <openssl/mem.h>
-#include <openssl/thread.h>
 
 #include "../asn1/internal.h"
 #include "../internal.h"
