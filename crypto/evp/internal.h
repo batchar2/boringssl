@@ -15,28 +15,30 @@
 #ifndef OPENSSL_HEADER_CRYPTO_EVP_INTERNAL_H
 #define OPENSSL_HEADER_CRYPTO_EVP_INTERNAL_H
 
-#include <openssl/base.h>
+#include <openssl/evp.h>
+
+#include <array>
 
 #include <openssl/span.h>
 
 #include "../internal.h"
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
 
+DECLARE_OPAQUE_STRUCT(evp_pkey_ctx_st, EvpPkeyCtx)
+
+BSSL_NAMESPACE_BEGIN
 
 typedef struct evp_pkey_asn1_method_st EVP_PKEY_ASN1_METHOD;
 typedef struct evp_pkey_ctx_method_st EVP_PKEY_CTX_METHOD;
 
+BSSL_NAMESPACE_END
+
 struct evp_pkey_alg_st {
   // method implements operations for this |EVP_PKEY_ALG|.
-  const EVP_PKEY_ASN1_METHOD *method;
-
-  // ec_group returns the |EC_GROUP| for this algorithm, if |method| is for
-  // |EVP_PKEY_EC|.
-  const EC_GROUP *(*ec_group)();
+  const bssl::EVP_PKEY_ASN1_METHOD *method;
 };
+
+BSSL_NAMESPACE_BEGIN
 
 enum evp_decode_result_t {
   evp_decode_error = 0,
@@ -72,7 +74,11 @@ struct evp_pkey_asn1_method_st {
   // to |out|. It returns one on success and zero on error.
   int (*pub_encode)(CBB *out, const EVP_PKEY *key);
 
-  int (*pub_cmp)(const EVP_PKEY *a, const EVP_PKEY *b);
+  bool (*pub_equal)(const EVP_PKEY *a, const EVP_PKEY *b);
+
+  // pub_present returns true iff the |pk| has a public key. (If so, validity
+  // is not guaranteed and should be checked separately.)
+  bool (*pub_present)(const EVP_PKEY *pk);
 
   // priv_decode decodes |params| and |key| as a PrivateKeyInfo and writes the
   // result into |out|.  It returns |evp_decode_ok| on success, and
@@ -90,9 +96,15 @@ struct evp_pkey_asn1_method_st {
   // |out|. It returns one on success and zero on error.
   int (*priv_encode)(CBB *out, const EVP_PKEY *key);
 
+  // priv_present returns true iff the |pk| has a private key. (If so, validity
+  // is not guaranteed and should be checked separately.)
+  bool (*priv_present)(const EVP_PKEY *pk);
+
   int (*set_priv_raw)(EVP_PKEY *pkey, const uint8_t *in, size_t len);
+  int (*set_priv_seed)(EVP_PKEY *pkey, const uint8_t *in, size_t len);
   int (*set_pub_raw)(EVP_PKEY *pkey, const uint8_t *in, size_t len);
   int (*get_priv_raw)(const EVP_PKEY *pkey, uint8_t *out, size_t *out_len);
+  int (*get_priv_seed)(const EVP_PKEY *pkey, uint8_t *out, size_t *out_len);
   int (*get_pub_raw)(const EVP_PKEY *pkey, uint8_t *out, size_t *out_len);
 
   // TODO(davidben): Can these be merged with the functions above? OpenSSL does
@@ -115,21 +127,25 @@ struct evp_pkey_asn1_method_st {
 
   int (*param_missing)(const EVP_PKEY *pk);
   int (*param_copy)(EVP_PKEY *to, const EVP_PKEY *from);
-  int (*param_cmp)(const EVP_PKEY *a, const EVP_PKEY *b);
+  bool (*param_equal)(const EVP_PKEY *a, const EVP_PKEY *b);
 
   void (*pkey_free)(EVP_PKEY *pkey);
 } /* EVP_PKEY_ASN1_METHOD */;
 
+BSSL_NAMESPACE_END
+
 struct evp_pkey_st {
-  CRYPTO_refcount_t references;
+  bssl::CRYPTO_refcount_t references;
 
   // pkey contains a pointer to a structure dependent on |ameth|.
   void *pkey;
 
   // ameth contains a pointer to a method table that determines the key type, or
   // nullptr if the key is empty.
-  const EVP_PKEY_ASN1_METHOD *ameth;
+  const bssl::EVP_PKEY_ASN1_METHOD *ameth;
 } /* EVP_PKEY */;
+
+BSSL_NAMESPACE_BEGIN
 
 #define EVP_PKEY_OP_UNDEFINED 0
 #define EVP_PKEY_OP_KEYGEN (1 << 2)
@@ -200,11 +216,14 @@ OPENSSL_EXPORT int EVP_PKEY_CTX_ctrl(EVP_PKEY_CTX *ctx, int keytype, int optype,
 #define EVP_PKEY_CTRL_HKDF_INFO (EVP_PKEY_ALG_CTRL + 18)
 #define EVP_PKEY_CTRL_DH_PAD (EVP_PKEY_ALG_CTRL + 19)
 
-struct evp_pkey_ctx_st {
-  ~evp_pkey_ctx_st();
+class EvpPkeyCtx : public evp_pkey_ctx_st {
+ public:
+  static constexpr bool kAllowUniquePtr = true;
+
+  ~EvpPkeyCtx();
 
   // Method associated with this operation
-  const EVP_PKEY_CTX_METHOD *pmeth = nullptr;
+  const bssl::EVP_PKEY_CTX_METHOD *pmeth = nullptr;
   // Key: may be nullptr
   bssl::UniquePtr<EVP_PKEY> pkey;
   // Peer key for key agreement, may be nullptr
@@ -216,72 +235,47 @@ struct evp_pkey_ctx_st {
   // creation, this should instead be a base class, with the algorithm-specific
   // data on the subclass, coming from the same allocation.
   void *data = nullptr;
-} /* EVP_PKEY_CTX */;
+};
 
 struct evp_pkey_ctx_method_st {
   int pkey_id;
 
-  int (*init)(EVP_PKEY_CTX *ctx);
-  int (*copy)(EVP_PKEY_CTX *dst, EVP_PKEY_CTX *src);
-  void (*cleanup)(EVP_PKEY_CTX *ctx);
+  int (*init)(EvpPkeyCtx *ctx);
+  int (*copy)(EvpPkeyCtx *dst, EvpPkeyCtx *src);
+  void (*cleanup)(EvpPkeyCtx *ctx);
 
-  int (*keygen)(EVP_PKEY_CTX *ctx, EVP_PKEY *pkey);
+  int (*keygen)(EvpPkeyCtx *ctx, EVP_PKEY *pkey);
 
-  int (*sign)(EVP_PKEY_CTX *ctx, uint8_t *sig, size_t *siglen,
-              const uint8_t *tbs, size_t tbslen);
+  int (*sign)(EvpPkeyCtx *ctx, uint8_t *sig, size_t *siglen, const uint8_t *tbs,
+              size_t tbslen);
 
-  int (*sign_message)(EVP_PKEY_CTX *ctx, uint8_t *sig, size_t *siglen,
+  int (*sign_message)(EvpPkeyCtx *ctx, uint8_t *sig, size_t *siglen,
                       const uint8_t *tbs, size_t tbslen);
 
-  int (*verify)(EVP_PKEY_CTX *ctx, const uint8_t *sig, size_t siglen,
+  int (*verify)(EvpPkeyCtx *ctx, const uint8_t *sig, size_t siglen,
                 const uint8_t *tbs, size_t tbslen);
 
-  int (*verify_message)(EVP_PKEY_CTX *ctx, const uint8_t *sig, size_t siglen,
+  int (*verify_message)(EvpPkeyCtx *ctx, const uint8_t *sig, size_t siglen,
                         const uint8_t *tbs, size_t tbslen);
 
-  int (*verify_recover)(EVP_PKEY_CTX *ctx, uint8_t *out, size_t *out_len,
+  int (*verify_recover)(EvpPkeyCtx *ctx, uint8_t *out, size_t *out_len,
                         const uint8_t *sig, size_t sig_len);
 
-  int (*encrypt)(EVP_PKEY_CTX *ctx, uint8_t *out, size_t *outlen,
+  int (*encrypt)(EvpPkeyCtx *ctx, uint8_t *out, size_t *outlen,
                  const uint8_t *in, size_t inlen);
 
-  int (*decrypt)(EVP_PKEY_CTX *ctx, uint8_t *out, size_t *outlen,
+  int (*decrypt)(EvpPkeyCtx *ctx, uint8_t *out, size_t *outlen,
                  const uint8_t *in, size_t inlen);
 
-  int (*derive)(EVP_PKEY_CTX *ctx, uint8_t *key, size_t *keylen);
+  int (*derive)(EvpPkeyCtx *ctx, uint8_t *key, size_t *keylen);
 
-  int (*paramgen)(EVP_PKEY_CTX *ctx, EVP_PKEY *pkey);
+  int (*paramgen)(EvpPkeyCtx *ctx, EVP_PKEY *pkey);
 
-  int (*ctrl)(EVP_PKEY_CTX *ctx, int type, int p1, void *p2);
+  int (*ctrl)(EvpPkeyCtx *ctx, int type, int p1, void *p2);
 } /* EVP_PKEY_CTX_METHOD */;
 
-typedef struct {
-  // key is the concatenation of the private seed and public key. It is stored
-  // as a single 64-bit array to allow passing to |ED25519_sign|. If
-  // |has_private| is false, the first 32 bytes are uninitialized and the public
-  // key is in the last 32 bytes.
-  uint8_t key[64];
-  char has_private;
-} ED25519_KEY;
-
-#define ED25519_PUBLIC_KEY_OFFSET 32
-
-typedef struct {
-  uint8_t pub[32];
-  uint8_t priv[32];
-  char has_private;
-} X25519_KEY;
-
-extern const EVP_PKEY_ASN1_METHOD dsa_asn1_meth;
-extern const EVP_PKEY_ASN1_METHOD ec_asn1_meth;
-extern const EVP_PKEY_ASN1_METHOD rsa_asn1_meth;
-extern const EVP_PKEY_ASN1_METHOD rsa_pss_sha256_asn1_meth;
-extern const EVP_PKEY_ASN1_METHOD ed25519_asn1_meth;
-extern const EVP_PKEY_ASN1_METHOD x25519_asn1_meth;
-extern const EVP_PKEY_ASN1_METHOD dh_asn1_meth;
-
 extern const EVP_PKEY_CTX_METHOD rsa_pkey_meth;
-extern const EVP_PKEY_CTX_METHOD rsa_pss_sha256_pkey_meth;
+extern const EVP_PKEY_CTX_METHOD rsa_pss_pkey_meth;
 extern const EVP_PKEY_CTX_METHOD ec_pkey_meth;
 extern const EVP_PKEY_CTX_METHOD ed25519_pkey_meth;
 extern const EVP_PKEY_CTX_METHOD x25519_pkey_meth;
@@ -294,9 +288,26 @@ extern const EVP_PKEY_CTX_METHOD dh_pkey_meth;
 void evp_pkey_set0(EVP_PKEY *pkey, const EVP_PKEY_ASN1_METHOD *method,
                    void *pkey_data);
 
+inline auto GetDefaultEVPAlgorithms() {
+  // A set of algorithms to use by default in |EVP_parse_public_key| and
+  // |EVP_parse_private_key|.
+  return std::array{
+      EVP_pkey_ec_p224(),
+      EVP_pkey_ec_p256(),
+      EVP_pkey_ec_p384(),
+      EVP_pkey_ec_p521(),
+      EVP_pkey_ed25519(),
+      EVP_pkey_rsa(),
+      EVP_pkey_x25519(),
+      EVP_pkey_ml_dsa_44(),
+      EVP_pkey_ml_dsa_65(),
+      EVP_pkey_ml_dsa_87(),
+      // TODO(crbug.com/438761503): Remove DSA from this set, after callers that
+      // need DSA pass in |EVP_pkey_dsa| explicitly.
+      EVP_pkey_dsa(),
+  };
+}
 
-#if defined(__cplusplus)
-}  // extern C
-#endif
+BSSL_NAMESPACE_END
 
 #endif  // OPENSSL_HEADER_CRYPTO_EVP_INTERNAL_H

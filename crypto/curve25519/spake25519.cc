@@ -26,8 +26,11 @@
 
 #include "../fipsmodule/bn/internal.h"
 #include "../internal.h"
+#include "../mem_internal.h"
 #include "./internal.h"
 
+
+using namespace bssl;
 
 // The following precomputation tables are for the following
 // points used in the SPAKE2 protocol.
@@ -278,10 +281,9 @@ static const uint8_t kSpakeMSmallPrecomp[15 * 2 * 32] = {
 SPAKE2_CTX *SPAKE2_CTX_new(enum spake2_role_t my_role, const uint8_t *my_name,
                            size_t my_name_len, const uint8_t *their_name,
                            size_t their_name_len) {
-  SPAKE2_CTX *ctx =
-      reinterpret_cast<SPAKE2_CTX *>(OPENSSL_zalloc(sizeof(SPAKE2_CTX)));
-  if (ctx == NULL) {
-    return NULL;
+  SPAKE2_CTX *ctx = NewZeroed<SPAKE2_CTX>();
+  if (ctx == nullptr) {
+    return nullptr;
   }
 
   ctx->my_role = my_role;
@@ -292,20 +294,20 @@ SPAKE2_CTX *SPAKE2_CTX_new(enum spake2_role_t my_role, const uint8_t *my_name,
   if (!CBS_stow(&my_name_cbs, &ctx->my_name, &ctx->my_name_len) ||
       !CBS_stow(&their_name_cbs, &ctx->their_name, &ctx->their_name_len)) {
     SPAKE2_CTX_free(ctx);
-    return NULL;
+    return nullptr;
   }
 
   return ctx;
 }
 
 void SPAKE2_CTX_free(SPAKE2_CTX *ctx) {
-  if (ctx == NULL) {
+  if (ctx == nullptr) {
     return;
   }
 
   OPENSSL_free(ctx->my_name);
   OPENSSL_free(ctx->their_name);
-  OPENSSL_free(ctx);
+  Delete(ctx);
 }
 
 // left_shift_3 sets |n| to |n|*8, where |n| is represented in little-endian

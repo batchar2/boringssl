@@ -24,16 +24,19 @@
 #include <openssl/mem.h>
 
 #include "../internal.h"
+#include "../mem_internal.h"
 #include "internal.h"
 
+
+using namespace bssl;
 
 static CRYPTO_EX_DATA_CLASS g_ex_data_class =
     CRYPTO_EX_DATA_CLASS_INIT_WITH_APP_DATA;
 
 BIO *BIO_new(const BIO_METHOD *method) {
-  BIO *ret = reinterpret_cast<BIO *>(OPENSSL_zalloc(sizeof(BIO)));
-  if (ret == NULL) {
-    return NULL;
+  Bio *ret = NewZeroed<Bio>();
+  if (ret == nullptr) {
+    return nullptr;
   }
 
   ret->method = method;
@@ -41,36 +44,40 @@ BIO *BIO_new(const BIO_METHOD *method) {
   ret->references = 1;
   CRYPTO_new_ex_data(&ret->ex_data);
 
-  if (method->create != NULL && !method->create(ret)) {
-    OPENSSL_free(ret);
-    return NULL;
+  if (method->create != nullptr && !method->create(ret)) {
+    Delete(ret);
+    return nullptr;
   }
 
   return ret;
 }
 
 int BIO_free(BIO *bio) {
-  BIO *next_bio;
+  auto *impl = FromOpaque(bio);
 
-  for (; bio != NULL; bio = next_bio) {
-    if (!CRYPTO_refcount_dec_and_test_zero(&bio->references)) {
+  Bio *next_bio;
+
+  for (; impl != nullptr; impl = next_bio) {
+    if (!CRYPTO_refcount_dec_and_test_zero(&impl->references)) {
       return 0;
     }
 
-    next_bio = BIO_pop(bio);
+    next_bio = FromOpaque(BIO_pop(impl));
 
-    if (bio->method != NULL && bio->method->destroy != NULL) {
-      bio->method->destroy(bio);
+    if (impl->method != nullptr && impl->method->destroy != nullptr) {
+      impl->method->destroy(impl);
     }
 
-    CRYPTO_free_ex_data(&g_ex_data_class, &bio->ex_data);
-    OPENSSL_free(bio);
+    CRYPTO_free_ex_data(&g_ex_data_class, &impl->ex_data);
+    Delete(impl);
   }
   return 1;
 }
 
 int BIO_up_ref(BIO *bio) {
-  CRYPTO_refcount_inc(&bio->references);
+  auto *impl = FromOpaque(bio);
+
+  CRYPTO_refcount_inc(&impl->references);
   return 1;
 }
 
@@ -79,58 +86,67 @@ void BIO_vfree(BIO *bio) { BIO_free(bio); }
 void BIO_free_all(BIO *bio) { BIO_free(bio); }
 
 int BIO_read(BIO *bio, void *buf, int len) {
-  if (bio == NULL || bio->method == NULL || bio->method->bread == NULL) {
+  auto *impl = FromOpaque(bio);
+
+  if (impl == nullptr || impl->method == nullptr ||
+      impl->method->bread == nullptr) {
     OPENSSL_PUT_ERROR(BIO, BIO_R_UNSUPPORTED_METHOD);
     return -2;
   }
-  if (!bio->init) {
+  if (!impl->init) {
     OPENSSL_PUT_ERROR(BIO, BIO_R_UNINITIALIZED);
     return -2;
   }
   if (len <= 0) {
     return 0;
   }
-  int ret = bio->method->bread(bio, reinterpret_cast<char *>(buf), len);
+  int ret = impl->method->bread(bio, reinterpret_cast<char *>(buf), len);
   if (ret > 0) {
-    bio->num_read += ret;
+    impl->num_read += ret;
   }
   return ret;
 }
 
 int BIO_gets(BIO *bio, char *buf, int len) {
-  if (bio == NULL || bio->method == NULL || bio->method->bgets == NULL) {
+  auto *impl = FromOpaque(bio);
+
+  if (bio == nullptr || impl->method == nullptr ||
+      impl->method->bgets == nullptr) {
     OPENSSL_PUT_ERROR(BIO, BIO_R_UNSUPPORTED_METHOD);
     return -2;
   }
-  if (!bio->init) {
+  if (!impl->init) {
     OPENSSL_PUT_ERROR(BIO, BIO_R_UNINITIALIZED);
     return -2;
   }
   if (len <= 0) {
     return 0;
   }
-  int ret = bio->method->bgets(bio, buf, len);
+  int ret = impl->method->bgets(bio, buf, len);
   if (ret > 0) {
-    bio->num_read += ret;
+    impl->num_read += ret;
   }
   return ret;
 }
 
 int BIO_write(BIO *bio, const void *in, int inl) {
-  if (bio == NULL || bio->method == NULL || bio->method->bwrite == NULL) {
+  auto *impl = FromOpaque(bio);
+
+  if (bio == nullptr || impl->method == nullptr ||
+      impl->method->bwrite == nullptr) {
     OPENSSL_PUT_ERROR(BIO, BIO_R_UNSUPPORTED_METHOD);
     return -2;
   }
-  if (!bio->init) {
+  if (!impl->init) {
     OPENSSL_PUT_ERROR(BIO, BIO_R_UNINITIALIZED);
     return -2;
   }
   if (inl <= 0) {
     return 0;
   }
-  int ret = bio->method->bwrite(bio, reinterpret_cast<const char *>(in), inl);
+  int ret = impl->method->bwrite(bio, reinterpret_cast<const char *>(in), inl);
   if (ret > 0) {
-    bio->num_write += ret;
+    impl->num_write += ret;
   }
   return ret;
 }
@@ -158,26 +174,30 @@ int BIO_puts(BIO *bio, const char *in) {
   return BIO_write(bio, in, (int)len);
 }
 
-int BIO_flush(BIO *bio) { return (int)BIO_ctrl(bio, BIO_CTRL_FLUSH, 0, NULL); }
+int BIO_flush(BIO *bio) {
+  return (int)BIO_ctrl(bio, BIO_CTRL_FLUSH, 0, nullptr);
+}
 
 long BIO_ctrl(BIO *bio, int cmd, long larg, void *parg) {
-  if (bio == NULL) {
+  auto *impl = FromOpaque(bio);
+
+  if (bio == nullptr) {
     return 0;
   }
 
-  if (bio->method == NULL || bio->method->ctrl == NULL) {
+  if (impl->method == nullptr || impl->method->ctrl == nullptr) {
     OPENSSL_PUT_ERROR(BIO, BIO_R_UNSUPPORTED_METHOD);
     return -2;
   }
 
-  return bio->method->ctrl(bio, cmd, larg, parg);
+  return impl->method->ctrl(bio, cmd, larg, parg);
 }
 
 char *BIO_ptr_ctrl(BIO *b, int cmd, long larg) {
-  char *p = NULL;
+  char *p = nullptr;
 
   if (BIO_ctrl(b, cmd, larg, (void *)&p) <= 0) {
-    return NULL;
+    return nullptr;
   }
 
   return p;
@@ -189,13 +209,23 @@ long BIO_int_ctrl(BIO *b, int cmd, long larg, int iarg) {
   return BIO_ctrl(b, cmd, larg, (void *)&i);
 }
 
-int BIO_reset(BIO *bio) { return (int)BIO_ctrl(bio, BIO_CTRL_RESET, 0, NULL); }
+int BIO_reset(BIO *bio) {
+  return (int)BIO_ctrl(bio, BIO_CTRL_RESET, 0, nullptr);
+}
 
-int BIO_eof(BIO *bio) { return (int)BIO_ctrl(bio, BIO_CTRL_EOF, 0, NULL); }
+int BIO_eof(BIO *bio) { return (int)BIO_ctrl(bio, BIO_CTRL_EOF, 0, nullptr); }
 
-void BIO_set_flags(BIO *bio, int flags) { bio->flags |= flags; }
+void BIO_set_flags(BIO *bio, int flags) {
+  auto *impl = FromOpaque(bio);
 
-int BIO_test_flags(const BIO *bio, int flags) { return bio->flags & flags; }
+  impl->flags |= flags;
+}
+
+int BIO_test_flags(const BIO *bio, int flags) {
+  auto *impl = FromOpaque(bio);
+
+  return impl->flags & flags;
+}
 
 int BIO_should_read(const BIO *bio) {
   return BIO_test_flags(bio, BIO_FLAGS_READ);
@@ -213,52 +243,82 @@ int BIO_should_io_special(const BIO *bio) {
   return BIO_test_flags(bio, BIO_FLAGS_IO_SPECIAL);
 }
 
-int BIO_get_retry_reason(const BIO *bio) { return bio->retry_reason; }
+int BIO_get_retry_reason(const BIO *bio) {
+  auto *impl = FromOpaque(bio);
 
-void BIO_set_retry_reason(BIO *bio, int reason) { bio->retry_reason = reason; }
+  return impl->retry_reason;
+}
 
-void BIO_clear_flags(BIO *bio, int flags) { bio->flags &= ~flags; }
+void BIO_set_retry_reason(BIO *bio, int reason) {
+  auto *impl = FromOpaque(bio);
+
+  impl->retry_reason = reason;
+}
+
+void BIO_clear_flags(BIO *bio, int flags) {
+  auto *impl = FromOpaque(bio);
+
+  impl->flags &= ~flags;
+}
 
 void BIO_set_retry_read(BIO *bio) {
-  bio->flags |= BIO_FLAGS_READ | BIO_FLAGS_SHOULD_RETRY;
+  auto *impl = FromOpaque(bio);
+
+  impl->flags |= BIO_FLAGS_READ | BIO_FLAGS_SHOULD_RETRY;
 }
 
 void BIO_set_retry_write(BIO *bio) {
-  bio->flags |= BIO_FLAGS_WRITE | BIO_FLAGS_SHOULD_RETRY;
+  auto *impl = FromOpaque(bio);
+
+  impl->flags |= BIO_FLAGS_WRITE | BIO_FLAGS_SHOULD_RETRY;
 }
 
 static const int kRetryFlags = BIO_FLAGS_RWS | BIO_FLAGS_SHOULD_RETRY;
 
-int BIO_get_retry_flags(BIO *bio) { return bio->flags & kRetryFlags; }
+int BIO_get_retry_flags(BIO *bio) {
+  auto *impl = FromOpaque(bio);
 
-void BIO_clear_retry_flags(BIO *bio) {
-  bio->flags &= ~kRetryFlags;
-  bio->retry_reason = 0;
+  return impl->flags & kRetryFlags;
 }
 
-int BIO_method_type(const BIO *bio) { return bio->method->type; }
+void BIO_clear_retry_flags(BIO *bio) {
+  auto *impl = FromOpaque(bio);
+
+  impl->flags &= ~kRetryFlags;
+  impl->retry_reason = 0;
+}
+
+int BIO_method_type(const BIO *bio) {
+  auto *impl = FromOpaque(bio);
+
+  return impl->method->type;
+}
 
 void BIO_copy_next_retry(BIO *bio) {
+  auto *impl = FromOpaque(bio);
+
   BIO_clear_retry_flags(bio);
-  BIO_set_flags(bio, BIO_get_retry_flags(bio->next_bio));
-  bio->retry_reason = bio->next_bio->retry_reason;
+  BIO_set_flags(bio, BIO_get_retry_flags(impl->next_bio));
+  impl->retry_reason = impl->next_bio->retry_reason;
 }
 
 long BIO_callback_ctrl(BIO *bio, int cmd, BIO_info_cb *fp) {
-  if (bio == NULL) {
+  auto *impl = FromOpaque(bio);
+
+  if (bio == nullptr) {
     return 0;
   }
 
-  if (bio->method == NULL || bio->method->callback_ctrl == NULL) {
+  if (impl->method == nullptr || impl->method->callback_ctrl == nullptr) {
     OPENSSL_PUT_ERROR(BIO, BIO_R_UNSUPPORTED_METHOD);
     return 0;
   }
 
-  return bio->method->callback_ctrl(bio, cmd, fp);
+  return impl->method->callback_ctrl(bio, cmd, fp);
 }
 
 size_t BIO_pending(const BIO *bio) {
-  const long r = BIO_ctrl((BIO *)bio, BIO_CTRL_PENDING, 0, NULL);
+  const long r = BIO_ctrl((BIO *)bio, BIO_CTRL_PENDING, 0, nullptr);
   assert(r >= 0);
 
   if (r < 0) {
@@ -270,7 +330,7 @@ size_t BIO_pending(const BIO *bio) {
 size_t BIO_ctrl_pending(const BIO *bio) { return BIO_pending(bio); }
 
 size_t BIO_wpending(const BIO *bio) {
-  const long r = BIO_ctrl((BIO *)bio, BIO_CTRL_WPENDING, 0, NULL);
+  const long r = BIO_ctrl((BIO *)bio, BIO_CTRL_WPENDING, 0, nullptr);
   assert(r >= 0);
 
   if (r < 0) {
@@ -280,62 +340,74 @@ size_t BIO_wpending(const BIO *bio) {
 }
 
 int BIO_set_close(BIO *bio, int close_flag) {
-  return (int)BIO_ctrl(bio, BIO_CTRL_SET_CLOSE, close_flag, NULL);
+  return (int)BIO_ctrl(bio, BIO_CTRL_SET_CLOSE, close_flag, nullptr);
 }
 
 OPENSSL_EXPORT uint64_t BIO_number_read(const BIO *bio) {
-  return bio->num_read;
+  auto *impl = FromOpaque(bio);
+
+  return impl->num_read;
 }
 
 OPENSSL_EXPORT uint64_t BIO_number_written(const BIO *bio) {
-  return bio->num_write;
+  auto *impl = FromOpaque(bio);
+
+  return impl->num_write;
 }
 
 BIO *BIO_push(BIO *bio, BIO *appended_bio) {
-  BIO *last_bio;
+  auto *impl = FromOpaque(bio);
 
-  if (bio == NULL) {
+  Bio *last_bio;
+
+  if (bio == nullptr) {
     return bio;
   }
 
-  last_bio = bio;
-  while (last_bio->next_bio != NULL) {
+  last_bio = impl;
+  while (last_bio->next_bio != nullptr) {
     last_bio = last_bio->next_bio;
   }
 
-  last_bio->next_bio = appended_bio;
+  last_bio->next_bio = FromOpaque(appended_bio);
   return bio;
 }
 
 BIO *BIO_pop(BIO *bio) {
+  auto *impl = FromOpaque(bio);
+
   BIO *ret;
 
-  if (bio == NULL) {
-    return NULL;
+  if (bio == nullptr) {
+    return nullptr;
   }
-  ret = bio->next_bio;
-  bio->next_bio = NULL;
+  ret = impl->next_bio;
+  impl->next_bio = nullptr;
   return ret;
 }
 
 BIO *BIO_next(BIO *bio) {
+  auto *impl = FromOpaque(bio);
+
   if (!bio) {
-    return NULL;
+    return nullptr;
   }
-  return bio->next_bio;
+  return impl->next_bio;
 }
 
 BIO *BIO_find_type(BIO *bio, int type) {
+  auto *impl = FromOpaque(bio);
+
   int method_type, mask;
 
   if (!bio) {
-    return NULL;
+    return nullptr;
   }
   mask = type & 0xff;
 
   do {
-    if (bio->method != NULL) {
-      method_type = bio->method->type;
+    if (impl->method != nullptr) {
+      method_type = impl->method->type;
 
       if (!mask) {
         if (method_type & type) {
@@ -345,10 +417,10 @@ BIO *BIO_find_type(BIO *bio, int type) {
         return bio;
       }
     }
-    bio = bio->next_bio;
-  } while (bio != NULL);
+    bio = impl->next_bio;
+  } while (bio != nullptr);
 
-  return NULL;
+  return nullptr;
 }
 
 int BIO_indent(BIO *bio, unsigned indent, unsigned max_indent) {
@@ -378,7 +450,7 @@ void ERR_print_errors(BIO *bio) { ERR_print_errors_cb(print_bio, bio); }
 //
 // The function will fail if the size of the output would equal or exceed
 // |max_len|.
-static int bio_read_all(BIO *bio, uint8_t **out, size_t *out_len,
+static int bio_read_all(Bio *bio, uint8_t **out, size_t *out_len,
                         const uint8_t *prefix, size_t prefix_len,
                         size_t max_len) {
   static const size_t kChunkSize = 4096;
@@ -391,7 +463,7 @@ static int bio_read_all(BIO *bio, uint8_t **out, size_t *out_len,
     return 0;
   }
   *out = reinterpret_cast<uint8_t *>(OPENSSL_malloc(len));
-  if (*out == NULL) {
+  if (*out == nullptr) {
     return 0;
   }
   OPENSSL_memcpy(*out, prefix, prefix_len);
@@ -423,7 +495,7 @@ static int bio_read_all(BIO *bio, uint8_t **out, size_t *out_len,
       }
       uint8_t *new_buf =
           reinterpret_cast<uint8_t *>(OPENSSL_realloc(*out, len));
-      if (new_buf == NULL) {
+      if (new_buf == nullptr) {
         OPENSSL_free(*out);
         return 0;
       }
@@ -437,14 +509,14 @@ static int bio_read_all(BIO *bio, uint8_t **out, size_t *out_len,
 // read fails before |len| bytes are read. On failure, it additionally sets
 // |*out_eof_on_first_read| to whether the error was due to |bio| returning zero
 // on the first read. |out_eof_on_first_read| may be NULL to discard the value.
-static int bio_read_full(BIO *bio, uint8_t *out, int *out_eof_on_first_read,
+static int bio_read_full(Bio *bio, uint8_t *out, int *out_eof_on_first_read,
                          size_t len) {
   int first_read = 1;
   while (len > 0) {
     int todo = len <= INT_MAX ? (int)len : INT_MAX;
     int ret = BIO_read(bio, out, todo);
     if (ret <= 0) {
-      if (out_eof_on_first_read != NULL) {
+      if (out_eof_on_first_read != nullptr) {
         *out_eof_on_first_read = first_read && ret == 0;
       }
       return 0;
@@ -469,7 +541,8 @@ int BIO_read_asn1(BIO *bio, uint8_t **out, size_t *out_len, size_t max_len) {
 
   static const size_t kInitialHeaderLen = 2;
   int eof_on_first_read;
-  if (!bio_read_full(bio, header, &eof_on_first_read, kInitialHeaderLen)) {
+  auto *impl = FromOpaque(bio);
+  if (!bio_read_full(impl, header, &eof_on_first_read, kInitialHeaderLen)) {
     if (eof_on_first_read) {
       // Historically, OpenSSL returned |ASN1_R_HEADER_TOO_LONG| when
       // |d2i_*_bio| could not read anything. CPython conditions on this to
@@ -500,7 +573,7 @@ int BIO_read_asn1(BIO *bio, uint8_t **out, size_t *out_len, size_t max_len) {
 
     if ((tag & 0x20 /* constructed */) != 0 && num_bytes == 0) {
       // indefinite length.
-      if (!bio_read_all(bio, out, out_len, header, kInitialHeaderLen,
+      if (!bio_read_all(impl, out, out_len, header, kInitialHeaderLen,
                         max_len)) {
         OPENSSL_PUT_ERROR(ASN1, ASN1_R_NOT_ENOUGH_DATA);
         return 0;
@@ -513,7 +586,7 @@ int BIO_read_asn1(BIO *bio, uint8_t **out, size_t *out_len, size_t max_len) {
       return 0;
     }
 
-    if (!bio_read_full(bio, header + kInitialHeaderLen, NULL, num_bytes)) {
+    if (!bio_read_full(impl, header + kInitialHeaderLen, nullptr, num_bytes)) {
       OPENSSL_PUT_ERROR(ASN1, ASN1_R_NOT_ENOUGH_DATA);
       return 0;
     }
@@ -548,11 +621,11 @@ int BIO_read_asn1(BIO *bio, uint8_t **out, size_t *out_len, size_t max_len) {
   *out_len = len;
 
   *out = reinterpret_cast<uint8_t *>(OPENSSL_malloc(len));
-  if (*out == NULL) {
+  if (*out == nullptr) {
     return 0;
   }
   OPENSSL_memcpy(*out, header, header_len);
-  if (!bio_read_full(bio, (*out) + header_len, NULL, len - header_len)) {
+  if (!bio_read_full(impl, (*out) + header_len, nullptr, len - header_len)) {
     OPENSSL_PUT_ERROR(ASN1, ASN1_R_NOT_ENOUGH_DATA);
     OPENSSL_free(*out);
     return 0;
@@ -562,7 +635,9 @@ int BIO_read_asn1(BIO *bio, uint8_t **out, size_t *out_len, size_t max_len) {
 }
 
 void BIO_set_retry_special(BIO *bio) {
-  bio->flags |= BIO_FLAGS_READ | BIO_FLAGS_IO_SPECIAL;
+  auto *impl = FromOpaque(bio);
+
+  impl->flags |= BIO_FLAGS_READ | BIO_FLAGS_IO_SPECIAL;
 }
 
 int BIO_set_write_buffer_size(BIO *bio, int buffer_size) { return 0; }
@@ -570,7 +645,7 @@ int BIO_set_write_buffer_size(BIO *bio, int buffer_size) { return 0; }
 static CRYPTO_MUTEX g_index_lock = CRYPTO_MUTEX_INIT;
 static int g_index = BIO_TYPE_START;
 
-int BIO_get_new_index(void) {
+int BIO_get_new_index() {
   CRYPTO_MUTEX_lock_write(&g_index_lock);
   // If |g_index| exceeds 255, it will collide with the flags bits.
   int ret = g_index > 255 ? -1 : g_index++;
@@ -579,17 +654,16 @@ int BIO_get_new_index(void) {
 }
 
 BIO_METHOD *BIO_meth_new(int type, const char *name) {
-  BIO_METHOD *method =
-      reinterpret_cast<BIO_METHOD *>(OPENSSL_zalloc(sizeof(BIO_METHOD)));
-  if (method == NULL) {
-    return NULL;
+  BIO_METHOD *method = NewZeroed<BIO_METHOD>();
+  if (method == nullptr) {
+    return nullptr;
   }
   method->type = type;
   method->name = name;
   return method;
 }
 
-void BIO_meth_free(BIO_METHOD *method) { OPENSSL_free(method); }
+void BIO_meth_free(BIO_METHOD *method) { Delete(method); }
 
 int BIO_meth_set_create(BIO_METHOD *method, int (*create_func)(BIO *)) {
   method->create = create_func;
@@ -632,17 +706,41 @@ int BIO_meth_set_callback_ctrl(BIO_METHOD *method,
   return 1;
 }
 
-void BIO_set_data(BIO *bio, void *ptr) { bio->ptr = ptr; }
+void BIO_set_data(BIO *bio, void *ptr) {
+  auto *impl = FromOpaque(bio);
 
-void *BIO_get_data(BIO *bio) { return bio->ptr; }
+  impl->ptr = ptr;
+}
 
-void BIO_set_init(BIO *bio, int init) { bio->init = init; }
+void *BIO_get_data(BIO *bio) {
+  auto *impl = FromOpaque(bio);
 
-int BIO_get_init(BIO *bio) { return bio->init; }
+  return impl->ptr;
+}
 
-void BIO_set_shutdown(BIO *bio, int shutdown) { bio->shutdown = shutdown; }
+void BIO_set_init(BIO *bio, int init) {
+  auto *impl = FromOpaque(bio);
 
-int BIO_get_shutdown(BIO *bio) { return bio->shutdown; }
+  impl->init = init;
+}
+
+int BIO_get_init(BIO *bio) {
+  auto *impl = FromOpaque(bio);
+
+  return impl->init;
+}
+
+void BIO_set_shutdown(BIO *bio, int shutdown) {
+  auto *impl = FromOpaque(bio);
+
+  impl->shutdown = shutdown;
+}
+
+int BIO_get_shutdown(BIO *bio) {
+  auto *impl = FromOpaque(bio);
+
+  return impl->shutdown;
+}
 
 int BIO_meth_set_puts(BIO_METHOD *method, int (*puts)(BIO *, const char *)) {
   // Ignore the parameter. We implement |BIO_puts| using |BIO_write|.
@@ -657,9 +755,13 @@ int BIO_get_ex_new_index(long argl, void *argp,      //
 }
 
 int BIO_set_ex_data(BIO *bio, int idx, void *data) {
-  return CRYPTO_set_ex_data(&bio->ex_data, idx, data);
+  auto *impl = FromOpaque(bio);
+
+  return CRYPTO_set_ex_data(&impl->ex_data, idx, data);
 }
 
 void *BIO_get_ex_data(const BIO *bio, int idx) {
-  return CRYPTO_get_ex_data(&bio->ex_data, idx);
+  auto *impl = FromOpaque(bio);
+
+  return CRYPTO_get_ex_data(&impl->ex_data, idx);
 }

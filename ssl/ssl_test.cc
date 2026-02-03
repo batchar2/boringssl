@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <limits.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -61,7 +62,9 @@
 
 
 using testing::ElementsAre;
+using testing::ElementsAreArray;
 using testing::Key;
+using testing::Not;
 
 BSSL_NAMESPACE_BEGIN
 
@@ -95,7 +98,7 @@ static const VersionParam kAllVersions[] = {
 };
 
 struct ExpectedCipher {
-  unsigned long id;
+  uint16_t protocol_id;
   int in_group_flag;
 };
 
@@ -146,6 +149,10 @@ static void FrozenTimeCallback(const SSL *ssl, timeval *out_clock) {
   out_clock->tv_usec = 0;
 }
 
+static ssl_verify_result_t AcceptAnyCertificate(SSL *ssl, uint8_t *out_alert) {
+  return ssl_verify_ok;
+}
+
 static const CipherTest kCipherTests[] = {
     // Selecting individual ciphers should work.
     {
@@ -154,10 +161,10 @@ static const CipherTest kCipherTests[] = {
         "ECDHE-ECDSA-AES128-GCM-SHA256:"
         "ECDHE-RSA-AES128-GCM-SHA256",
         {
-            {TLS1_CK_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, 0},
-            {TLS1_CK_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 0},
-            {TLS1_CK_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
-            {TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 0},
+            {SSL_CIPHER_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
         },
         false,
     },
@@ -169,10 +176,10 @@ static const CipherTest kCipherTests[] = {
         "ECDHE-RSA-AES128-GCM-SHA256:"
         "+aRSA",
         {
-            {TLS1_CK_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, 0},
-            {TLS1_CK_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
-            {TLS1_CK_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 0},
-            {TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, 0},
+            {SSL_CIPHER_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
         },
         false,
     },
@@ -184,8 +191,8 @@ static const CipherTest kCipherTests[] = {
         "ECDHE-ECDSA-AES128-GCM-SHA256:"
         "ECDHE-RSA-AES128-GCM-SHA256",
         {
-            {TLS1_CK_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, 0},
-            {TLS1_CK_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, 0},
+            {SSL_CIPHER_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
         },
         false,
     },
@@ -193,7 +200,7 @@ static const CipherTest kCipherTests[] = {
     {
         "kRSA+AESGCM+AES128",
         {
-            {TLS1_CK_RSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_RSA_WITH_AES_128_GCM_SHA256, 0},
         },
         false,
     },
@@ -205,8 +212,8 @@ static const CipherTest kCipherTests[] = {
         "-kRSA:-ALL:"
         "AESGCM+AES128+aRSA",
         {
-            {TLS1_CK_RSA_WITH_AES_128_GCM_SHA256, 0},
-            {TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_RSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
         },
         false,
     },
@@ -218,10 +225,10 @@ static const CipherTest kCipherTests[] = {
         "ECDHE-RSA-AES128-GCM-SHA256:"
         "BOGUS1",
         {
-            {TLS1_CK_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, 0},
-            {TLS1_CK_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 0},
-            {TLS1_CK_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
-            {TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 0},
+            {SSL_CIPHER_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
         },
         true,
     },
@@ -233,10 +240,10 @@ static const CipherTest kCipherTests[] = {
         "ECDHE-RSA-AES128-GCM-SHA256:"
         "-BOGUS2:+BOGUS3:!BOGUS4",
         {
-            {TLS1_CK_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, 0},
-            {TLS1_CK_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 0},
-            {TLS1_CK_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
-            {TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 0},
+            {SSL_CIPHER_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
         },
         true,
     },
@@ -246,10 +253,10 @@ static const CipherTest kCipherTests[] = {
         "[ECDHE-RSA-CHACHA20-POLY1305]:"
         "ECDHE-RSA-AES128-GCM-SHA256",
         {
-            {TLS1_CK_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, 1},
-            {TLS1_CK_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
-            {TLS1_CK_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 0},
-            {TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, 1},
+            {SSL_CIPHER_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
         },
         false,
     },
@@ -260,10 +267,10 @@ static const CipherTest kCipherTests[] = {
         "[TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256]:"
         "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
         {
-            {TLS1_CK_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, 1},
-            {TLS1_CK_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
-            {TLS1_CK_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 0},
-            {TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, 1},
+            {SSL_CIPHER_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
         },
         false,
     },
@@ -282,11 +289,11 @@ static const CipherTest kCipherTests[] = {
         // by strength. Then RSA, backwards by strength.
         "aRSA",
         {
-            {TLS1_CK_ECDHE_RSA_WITH_AES_256_CBC_SHA, 0},
-            {TLS1_CK_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 0},
-            {TLS1_CK_ECDHE_RSA_WITH_AES_128_CBC_SHA, 0},
-            {TLS1_CK_RSA_WITH_AES_128_SHA, 0},
-            {TLS1_CK_RSA_WITH_AES_256_SHA, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_AES_256_CBC_SHA, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_AES_128_CBC_SHA, 0},
+            {SSL_CIPHER_RSA_WITH_AES_128_CBC_SHA, 0},
+            {SSL_CIPHER_RSA_WITH_AES_256_CBC_SHA, 0},
         },
         false,
     },
@@ -299,8 +306,8 @@ static const CipherTest kCipherTests[] = {
         "ECDHE-RSA-AES256-GCM-SHA384:"
         "@STRENGTH+AES256",
         {
-            {TLS1_CK_ECDHE_RSA_WITH_AES_256_GCM_SHA384, 0},
-            {TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_AES_256_GCM_SHA384, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
         },
         false,
     },
@@ -310,9 +317,9 @@ static const CipherTest kCipherTests[] = {
         "@STRENGTH+AES256:"
         "ECDHE-RSA-CHACHA20-POLY1305",
         {
-            {TLS1_CK_ECDHE_RSA_WITH_AES_256_GCM_SHA384, 0},
-            {TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
-            {TLS1_CK_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_AES_256_GCM_SHA384, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, 0},
         },
         false,
     },
@@ -324,8 +331,8 @@ static const CipherTest kCipherTests[] = {
         "!ECDHE-RSA-AES128-GCM-SHA256+RSA:"
         "!ECDSA+ECDHE-ECDSA-AES128-GCM-SHA256",
         {
-            {TLS1_CK_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
-            {TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
         },
         true,
     },
@@ -333,7 +340,7 @@ static const CipherTest kCipherTests[] = {
     {
         "AES128-SHA:ECDHE-RSA-AES128-GCM-SHA256:!SSLv3",
         {
-            {TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
         },
         false,
     },
@@ -341,7 +348,7 @@ static const CipherTest kCipherTests[] = {
     {
         "AES128-SHA:ECDHE-RSA-AES128-GCM-SHA256:!TLSv1.2",
         {
-            {TLS1_CK_RSA_WITH_AES_128_SHA, 0},
+            {SSL_CIPHER_RSA_WITH_AES_128_CBC_SHA, 0},
         },
         false,
     },
@@ -350,8 +357,8 @@ static const CipherTest kCipherTests[] = {
     {
         "AES128-SHA:ECDHE-RSA-AES128-GCM-SHA256:!TLSv1.2+SSLv3",
         {
-            {TLS1_CK_RSA_WITH_AES_128_SHA, 0},
-            {TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_RSA_WITH_AES_128_CBC_SHA, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
         },
         false,
     },
@@ -360,11 +367,11 @@ static const CipherTest kCipherTests[] = {
         "AES128-SHA: ECDHE-RSA-AES128-GCM-SHA256 AES256-SHA "
         ",ECDHE-ECDSA-AES128-GCM-SHA256 ; AES128-GCM-SHA256",
         {
-            {TLS1_CK_RSA_WITH_AES_128_SHA, 0},
-            {TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
-            {TLS1_CK_RSA_WITH_AES_256_SHA, 0},
-            {TLS1_CK_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
-            {TLS1_CK_RSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_RSA_WITH_AES_128_CBC_SHA, 0},
+            {SSL_CIPHER_ECDHE_RSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_RSA_WITH_AES_256_CBC_SHA, 0},
+            {SSL_CIPHER_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_RSA_WITH_AES_128_GCM_SHA256, 0},
         },
         // …but not in strict mode.
         true,
@@ -373,10 +380,10 @@ static const CipherTest kCipherTests[] = {
     {
         "RSA",
         {
-            {TLS1_CK_RSA_WITH_AES_128_GCM_SHA256, 0},
-            {TLS1_CK_RSA_WITH_AES_256_GCM_SHA384, 0},
-            {TLS1_CK_RSA_WITH_AES_128_SHA, 0},
-            {TLS1_CK_RSA_WITH_AES_256_SHA, 0},
+            {SSL_CIPHER_RSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_RSA_WITH_AES_256_GCM_SHA384, 0},
+            {SSL_CIPHER_RSA_WITH_AES_128_CBC_SHA, 0},
+            {SSL_CIPHER_RSA_WITH_AES_256_CBC_SHA, 0},
         },
         false,
     },
@@ -384,14 +391,14 @@ static const CipherTest kCipherTests[] = {
     {
         "TLS_RSA_WITH_3DES_EDE_CBC_SHA",
         {
-            {SSL3_CK_RSA_DES_192_CBC3_SHA, 0},
+            {SSL_CIPHER_RSA_WITH_3DES_EDE_CBC_SHA, 0},
         },
         false,
     },
     {
         "DES-CBC3-SHA",
         {
-            {SSL3_CK_RSA_DES_192_CBC3_SHA, 0},
+            {SSL_CIPHER_RSA_WITH_3DES_EDE_CBC_SHA, 0},
         },
         false,
     },
@@ -399,7 +406,7 @@ static const CipherTest kCipherTests[] = {
     {
         "3DES",
         {
-            {SSL3_CK_RSA_DES_192_CBC3_SHA, 0},
+            {SSL_CIPHER_RSA_WITH_3DES_EDE_CBC_SHA, 0},
         },
         false,
     },
@@ -408,7 +415,7 @@ static const CipherTest kCipherTests[] = {
     {
         "RSA+3DES",
         {
-            {SSL3_CK_RSA_DES_192_CBC3_SHA, 0},
+            {SSL_CIPHER_RSA_WITH_3DES_EDE_CBC_SHA, 0},
         },
         false,
     },
@@ -419,16 +426,16 @@ static const CipherTest kCipherTests[] = {
     {
         "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256:ECDHE+3DES",
         {
-            {TLS1_CK_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
         },
         false,
     },
-    // Although alises like "RSA" do not match 3DES when adding ciphers, they do
+    // Although aliases like "RSA" do not match 3DES when adding ciphers, they do
     // match it when removing ciphers.
     {
         "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256:RSA:RSA+3DES:!RSA",
         {
-            {TLS1_CK_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0},
         },
         false,
     },
@@ -436,11 +443,11 @@ static const CipherTest kCipherTests[] = {
     {
         "RSA:3DES:@STRENGTH",
         {
-            {TLS1_CK_RSA_WITH_AES_256_GCM_SHA384, 0},
-            {TLS1_CK_RSA_WITH_AES_256_SHA, 0},
-            {TLS1_CK_RSA_WITH_AES_128_GCM_SHA256, 0},
-            {TLS1_CK_RSA_WITH_AES_128_SHA, 0},
-            {SSL3_CK_RSA_DES_192_CBC3_SHA, 0},
+            {SSL_CIPHER_RSA_WITH_AES_256_GCM_SHA384, 0},
+            {SSL_CIPHER_RSA_WITH_AES_256_CBC_SHA, 0},
+            {SSL_CIPHER_RSA_WITH_AES_128_GCM_SHA256, 0},
+            {SSL_CIPHER_RSA_WITH_AES_128_CBC_SHA, 0},
+            {SSL_CIPHER_RSA_WITH_3DES_EDE_CBC_SHA, 0},
         },
         false,
     },
@@ -478,9 +485,17 @@ static const char *kMustNotIncludeDeprecated[] = {
     "SHA1", "RSA",     "SSLv3", "TLSv1", "TLSv1.2",
 };
 
-static const char *kShouldIncludeCBCSHA256[] = {
-    "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
-    "ALL:TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
+static const struct {
+  const char *rule;
+  int expected_included_deprecated_count;
+} kDeprecatedCBCSHA256Rules[] = {
+    {"TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256", 1},
+    {"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256", 1},
+    {"ALL:TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256", 1},
+    {"ALL:TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256", 1},
+    {"ALL:TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256:TLS_ECDHE_RSA_WITH_AES_128_"
+     "CBC_SHA256",
+     2},
 };
 
 static const CurveTest kCurveTests[] = {
@@ -534,6 +549,7 @@ static const char *kBadCurvesLists[] = {
     "P-256:RSA",
     "X25519:P-256:",
     ":X25519:P-256",
+    "X25519:X25519",
 };
 
 static std::string CipherListToString(SSL_CTX *ctx) {
@@ -569,7 +585,7 @@ static bool CipherListsEqual(SSL_CTX *ctx,
 
   for (size_t i = 0; i < expected.size(); i++) {
     const SSL_CIPHER *cipher = sk_SSL_CIPHER_value(ciphers, i);
-    if (expected[i].id != SSL_CIPHER_get_id(cipher) ||
+    if (expected[i].protocol_id != SSL_CIPHER_get_protocol_id(cipher) ||
         expected[i].in_group_flag != !!SSL_CTX_cipher_in_group(ctx, i)) {
       return false;
     }
@@ -621,23 +637,22 @@ TEST(SSLTest, CipherRules) {
       EXPECT_FALSE(ssl_cipher_is_deprecated(cipher));
     }
   }
+}
 
-  {
-    for (const char *rule : kShouldIncludeCBCSHA256) {
-      bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
-      ASSERT_TRUE(ctx);
-      ASSERT_TRUE(SSL_CTX_set_strict_cipher_list(ctx.get(), rule));
+TEST(SSLTest, CipherRulesDeprecated) {
+  for (const auto& test : kDeprecatedCBCSHA256Rules) {
+    SCOPED_TRACE(test.rule);
+    bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
+    ASSERT_TRUE(ctx);
+    ASSERT_TRUE(SSL_CTX_set_strict_cipher_list(ctx.get(), test.rule));
 
-      bool found = false;
-      for (const SSL_CIPHER *cipher : SSL_CTX_get_ciphers(ctx.get())) {
-        if ((TLS1_CK_ECDHE_RSA_WITH_AES_128_CBC_SHA256 & 0xffff) ==
-            SSL_CIPHER_get_protocol_id(cipher)) {
-          found = true;
-          break;
-        }
+    int found = 0;
+    for (const SSL_CIPHER *cipher : SSL_CTX_get_ciphers(ctx.get())) {
+      if (ssl_cipher_is_deprecated(cipher)) {
+        ++found;
       }
-      EXPECT_TRUE(found);
     }
+    EXPECT_EQ(found, test.expected_included_deprecated_count);
   }
 }
 
@@ -662,6 +677,334 @@ TEST(SSLTest, CurveRules) {
     EXPECT_FALSE(SSL_CTX_set1_groups_list(ctx.get(), rule));
     ERR_clear_error();
   }
+}
+
+TEST(SSLTest, DefaultCurves) {
+  const uint16_t kDefaults[] = {SSL_GROUP_X25519, SSL_GROUP_SECP256R1,
+                                SSL_GROUP_SECP384R1};
+
+  // Test the group ID APIs.
+  {
+    bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
+    ASSERT_TRUE(ctx);
+    // The new context is populated with the default group list.
+    EXPECT_THAT(ctx->supported_group_list, ElementsAreArray(kDefaults));
+
+    // Set some other list to check that it is set away from the default.
+    const uint16_t kArbitraryGroupIds[] = {SSL_GROUP_X25519};
+    ASSERT_TRUE(SSL_CTX_set1_group_ids(ctx.get(), kArbitraryGroupIds,
+                                       std::size(kArbitraryGroupIds)));
+    EXPECT_THAT(ctx->supported_group_list, Not(ElementsAreArray(kDefaults)));
+
+    bssl::UniquePtr<SSL> ssl(SSL_new(ctx.get()));
+    ASSERT_TRUE(ssl);
+    EXPECT_THAT(ssl->config->supported_group_list,
+                Not(ElementsAreArray(kDefaults)));
+
+    // Setting an empty list restores the defaults.
+    ASSERT_TRUE(SSL_set1_group_ids(ssl.get(), nullptr, 0));
+    EXPECT_THAT(ssl->config->supported_group_list, ElementsAreArray(kDefaults));
+    ASSERT_TRUE(SSL_CTX_set1_group_ids(ctx.get(), nullptr, 0));
+    EXPECT_THAT(ctx->supported_group_list, ElementsAreArray(kDefaults));
+  }
+
+  // Test the NID APIs.
+  {
+    bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
+    ASSERT_TRUE(ctx);
+    // The new context is populated with the default group list.
+    EXPECT_THAT(ctx->supported_group_list, ElementsAreArray(kDefaults));
+
+    // Set some other list to check that it is set away from the default.
+    const int kArbitraryNids[] = {NID_X9_62_prime256v1};
+    ASSERT_TRUE(SSL_CTX_set1_groups(ctx.get(), kArbitraryNids,
+                                    std::size(kArbitraryNids)));
+    EXPECT_THAT(ctx->supported_group_list, Not(ElementsAreArray(kDefaults)));
+
+    bssl::UniquePtr<SSL> ssl(SSL_new(ctx.get()));
+    ASSERT_TRUE(ssl);
+    EXPECT_THAT(ssl->config->supported_group_list,
+                Not(ElementsAreArray(kDefaults)));
+
+    // Setting an empty list restores the defaults.
+    ASSERT_TRUE(SSL_set1_groups(ssl.get(), nullptr, 0));
+    EXPECT_THAT(ssl->config->supported_group_list, ElementsAreArray(kDefaults));
+    ASSERT_TRUE(SSL_CTX_set1_groups(ctx.get(), nullptr, 0));
+    EXPECT_THAT(ctx->supported_group_list, ElementsAreArray(kDefaults));
+  }
+}
+
+TEST(SSLTest, SetClientKeyShares) {
+  const struct {
+    const char *description;
+    std::vector<uint16_t> supported_groups;
+    std::vector<uint16_t> key_shares;
+    bool expected_success;
+  } kTests[] = {
+      {
+          "Empty key shares with default supported groups",
+          {},
+          {},
+          true,
+      },
+      {
+          "Empty key shares with custom supported groups",
+          {SSL_GROUP_X25519, SSL_GROUP_X25519_MLKEM768},
+          {},
+          true,
+      },
+      {
+          "One key share matching default supported groups",
+          {},
+          {SSL_GROUP_X25519},
+          true,
+      },
+      {
+          "One key share matching custom supported groups",
+          {SSL_GROUP_X25519, SSL_GROUP_X25519_MLKEM768},
+          {SSL_GROUP_X25519},
+          true,
+      },
+      {
+          "Key share not in supported default groups",
+          {},
+          {SSL_GROUP_MLKEM1024},
+          false,
+      },
+      {
+          "Key share not in supported custom groups",
+          {SSL_GROUP_X25519, SSL_GROUP_SECP256R1},
+          {SSL_GROUP_X25519_MLKEM768},
+          false,
+      },
+      {
+          "Multiple key shares, in correct order",
+          {SSL_GROUP_X25519, SSL_GROUP_SECP256R1, SSL_GROUP_X25519_MLKEM768},
+          {SSL_GROUP_X25519, SSL_GROUP_X25519_MLKEM768},
+          true,
+      },
+      {
+          "Multiple key shares, out of order",
+          {SSL_GROUP_X25519, SSL_GROUP_SECP256R1, SSL_GROUP_X25519_MLKEM768},
+          {SSL_GROUP_X25519_MLKEM768, SSL_GROUP_X25519},
+          false,
+      },
+      {
+          "More than two key shares",
+          {SSL_GROUP_X25519, SSL_GROUP_SECP256R1, SSL_GROUP_X25519_MLKEM768,
+           SSL_GROUP_MLKEM1024},
+          {SSL_GROUP_X25519, SSL_GROUP_SECP256R1, SSL_GROUP_X25519_MLKEM768},
+          true,
+      },
+      {
+          "Key shares cover all supported groups",
+          {SSL_GROUP_X25519, SSL_GROUP_SECP256R1, SSL_GROUP_X25519_MLKEM768},
+          {SSL_GROUP_X25519, SSL_GROUP_SECP256R1, SSL_GROUP_X25519_MLKEM768},
+          true,
+      },
+      {
+          "Multiple key shares, not all valid",
+          {SSL_GROUP_X25519, SSL_GROUP_X25519_MLKEM768},
+          {SSL_GROUP_X25519, SSL_GROUP_SECP256R1, SSL_GROUP_X25519_MLKEM768},
+          false,
+      },
+      {
+          "Key shares contain duplicates",
+          {},
+          {SSL_GROUP_X25519, SSL_GROUP_X25519},
+          false,
+      },
+  };
+
+  for (const auto &t : kTests) {
+    SCOPED_TRACE(t.description);
+    bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
+    ASSERT_TRUE(ctx);
+    bssl::UniquePtr<SSL> ssl(SSL_new(ctx.get()));
+    ASSERT_TRUE(ssl);
+    ASSERT_FALSE(ssl->config->client_key_share_selections.has_value());
+
+    ASSERT_TRUE(SSL_set1_group_ids(ssl.get(), t.supported_groups.data(),
+                                   t.supported_groups.size()));
+    EXPECT_EQ(SSL_set1_client_key_shares(ssl.get(), t.key_shares.data(),
+                                         t.key_shares.size()),
+              t.expected_success);
+    if (t.expected_success) {
+      ASSERT_TRUE(ssl->config->client_key_share_selections.has_value());
+      EXPECT_THAT(ssl->config->client_key_share_selections.value(),
+                  ElementsAreArray(t.key_shares));
+    }
+  }
+}
+
+// Test the behavior that modifying the SSL's supported groups results in
+// clearing the previously set client key shares, iff the supported groups
+// become incompatible with the key shares.
+TEST(SSLTest, ClientKeySharesResetAfterChangingGroups) {
+  bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
+  ASSERT_TRUE(ctx);
+  bssl::UniquePtr<SSL> ssl(SSL_new(ctx.get()));
+  ASSERT_TRUE(ssl);
+  ASSERT_FALSE(ssl->config->client_key_share_selections.has_value());
+
+  // An initial groups list and key shares that are compatible.
+  const uint16_t kGroups1[] = {SSL_GROUP_X25519_MLKEM768, SSL_GROUP_X25519};
+  const uint16_t kKeyShares[] = {SSL_GROUP_X25519_MLKEM768, SSL_GROUP_X25519};
+  ASSERT_TRUE(
+      SSL_set1_group_ids(ssl.get(), kGroups1, std::size(kGroups1)));
+  ASSERT_TRUE(SSL_set1_client_key_shares(ssl.get(), kKeyShares,
+                                         std::size(kKeyShares)));
+  ASSERT_TRUE(ssl->config->client_key_share_selections.has_value());
+  EXPECT_EQ(ssl->config->client_key_share_selections->size(), 2u);
+
+  // A new groups list that is still compatible with the previously set key
+  // shares.
+  const uint16_t kGroups2[] = {SSL_GROUP_MLKEM1024, SSL_GROUP_X25519_MLKEM768,
+                               SSL_GROUP_X25519};
+  ASSERT_TRUE(
+      SSL_set1_group_ids(ssl.get(), kGroups2, std::size(kGroups2)));
+  ASSERT_TRUE(ssl->config->client_key_share_selections.has_value());
+  EXPECT_EQ(ssl->config->client_key_share_selections->size(), 2u);
+
+  // A new groups list that is no longer compatible with the previously set key
+  // shares.
+  const uint16_t kGroups3[] = {SSL_GROUP_MLKEM1024, SSL_GROUP_X25519};
+  ASSERT_TRUE(
+      SSL_set1_group_ids(ssl.get(), kGroups3, std::size(kGroups3)));
+  EXPECT_FALSE(ssl->config->client_key_share_selections.has_value());
+}
+
+TEST(SSLTest, ServerSupportedGroupsHint) {
+  // List of client's supported groups used for these test cases.
+  const uint16_t kSupportedGroups[] = {
+      SSL_GROUP_X25519_MLKEM768,  //
+      SSL_GROUP_MLKEM1024,        //
+      SSL_GROUP_X25519,           //
+      SSL_GROUP_SECP256R1,        //
+  };
+
+  // By default, the first post-quantum and first classical groups are chosen.
+  std::vector<uint16_t> kDefaultKeyShares = {SSL_GROUP_X25519_MLKEM768,
+                                             SSL_GROUP_X25519};
+
+  const struct {
+    const char *description;
+    std::vector<uint16_t> server_hinted_groups;
+    std::vector<uint16_t> expected_key_shares;
+  } kTests[] = {
+      {
+          "Empty hint (defaults chosen)",
+          {},
+          kDefaultKeyShares,
+      },
+      {
+          "Hint one group, supported by client",
+          {SSL_GROUP_SECP256R1},
+          {SSL_GROUP_SECP256R1},
+      },
+      {
+          "Hint one group, not supported by client",
+          {SSL_GROUP_X25519_KYBER768_DRAFT00},
+          kDefaultKeyShares,
+      },
+      {
+          "Hint two groups, both supported by client in same order",
+          {SSL_GROUP_X25519_MLKEM768, SSL_GROUP_MLKEM1024},
+          {SSL_GROUP_X25519_MLKEM768},
+      },
+      {
+          "Hint two groups, both supported by client in different order",
+          {SSL_GROUP_X25519, SSL_GROUP_X25519_MLKEM768},
+          // The key share will be determined by the client's preference order,
+          // not the server hint's order.
+          {SSL_GROUP_X25519_MLKEM768},
+      },
+      {
+          "Hint two groups, supported and non-supported by client",
+          {SSL_GROUP_MLKEM1024, SSL_GROUP_SECP384R1},
+          {SSL_GROUP_MLKEM1024},
+      },
+      {
+          "Hint two groups, non-supported and supported by client",
+          {SSL_GROUP_SECP384R1, SSL_GROUP_MLKEM1024},
+          {SSL_GROUP_MLKEM1024},
+      },
+      {
+          "Hint unrecognized group",
+          {0x1234},
+          kDefaultKeyShares,
+      },
+  };
+
+  for (const auto &t : kTests) {
+    SCOPED_TRACE(t.description);
+    bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
+    ASSERT_TRUE(ctx);
+    ASSERT_TRUE(SSL_CTX_set1_group_ids(ctx.get(), kSupportedGroups,
+                                       std::size(kSupportedGroups)));
+    bssl::UniquePtr<SSL> ssl(SSL_new(ctx.get()));
+    ASSERT_TRUE(ssl);
+    ASSERT_TRUE(SSL_set1_server_supported_groups_hint(
+        ssl.get(), t.server_hinted_groups.data(),
+        t.server_hinted_groups.size()));
+    ASSERT_TRUE(SSL_connect(ssl.get()));
+
+    std::vector<uint16_t> key_shares;
+    for (const auto &key_share : ssl->s3->hs->key_shares) {
+      key_shares.push_back(key_share->GroupID());
+    }
+    EXPECT_THAT(key_shares, ElementsAreArray(t.expected_key_shares));
+  }
+}
+
+TEST(SSLTest, ServerHintOverridesClientKeyShareSelections) {
+  bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
+  ASSERT_TRUE(ctx);
+  bssl::UniquePtr<SSL> ssl(SSL_new(ctx.get()));
+  ASSERT_TRUE(ssl);
+
+  const uint16_t kGroups[] = {SSL_GROUP_SECP256R1, SSL_GROUP_X25519};
+  ASSERT_TRUE(SSL_set1_group_ids(ssl.get(), kGroups, std::size(kGroups)));
+
+  const uint16_t kKeyShares[] = {SSL_GROUP_SECP256R1};
+  ASSERT_TRUE(
+      SSL_set1_client_key_shares(ssl.get(), kKeyShares, std::size(kKeyShares)));
+  ASSERT_TRUE(ssl->config->client_key_share_selections.has_value());
+  EXPECT_THAT(ssl->config->client_key_share_selections.value(),
+              ElementsAreArray(kKeyShares));
+  const uint16_t kServerHint[] = {SSL_GROUP_X25519};
+  ASSERT_TRUE(SSL_set1_server_supported_groups_hint(ssl.get(), kServerHint,
+                                                    std::size(kServerHint)));
+  EXPECT_THAT(ssl->config->server_supported_groups_hint,
+              ElementsAreArray(kServerHint));
+
+  // The group predicted based on the server hint should win.
+  ASSERT_TRUE(SSL_connect(ssl.get()));
+  ASSERT_EQ(ssl->s3->hs->key_shares.size(), 1u);
+  EXPECT_EQ(kServerHint[0], ssl->s3->hs->key_shares[0]->GroupID());
+}
+
+TEST(SSLTest, ServerHintOverridesEmptyClientKeyShareSelections) {
+  bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
+  ASSERT_TRUE(ctx);
+  bssl::UniquePtr<SSL> ssl(SSL_new(ctx.get()));
+  ASSERT_TRUE(ssl);
+
+  const uint16_t kGroups[] = {SSL_GROUP_SECP256R1, SSL_GROUP_X25519};
+  ASSERT_TRUE(SSL_set1_group_ids(ssl.get(), kGroups, std::size(kGroups)));
+
+  ASSERT_TRUE(SSL_set1_client_key_shares(ssl.get(), nullptr, 0));
+  EXPECT_TRUE(ssl->config->client_key_share_selections->empty());
+  const uint16_t kServerHint[] = {SSL_GROUP_X25519};
+  ASSERT_TRUE(SSL_set1_server_supported_groups_hint(ssl.get(), kServerHint,
+                                                    std::size(kServerHint)));
+  EXPECT_THAT(ssl->config->server_supported_groups_hint,
+              ElementsAreArray(kServerHint));
+
+  // The group predicted based on the server hint should win.
+  ASSERT_TRUE(SSL_connect(ssl.get()));
+  ASSERT_EQ(ssl->s3->hs->key_shares.size(), 1u);
+  EXPECT_EQ(kServerHint[0], ssl->s3->hs->key_shares[0]->GroupID());
 }
 
 // kOpenSSLSession is a serialized SSL_SESSION.
@@ -922,12 +1265,12 @@ TEST(SSLTest, SessionEncoding) {
 
     // Verify the SSL_SESSION also decodes with the legacy API.
     const uint8_t *cptr = input.data();
-    session.reset(d2i_SSL_SESSION(NULL, &cptr, input.size()));
+    session.reset(d2i_SSL_SESSION(nullptr, &cptr, input.size()));
     ASSERT_TRUE(session) << "d2i_SSL_SESSION failed";
     EXPECT_EQ(cptr, input.data() + input.size());
 
     // Verify the SSL_SESSION encoding round-trips via the legacy API.
-    int len = i2d_SSL_SESSION(session.get(), NULL);
+    int len = i2d_SSL_SESSION(session.get(), nullptr);
     ASSERT_GT(len, 0) << "i2d_SSL_SESSION failed";
     ASSERT_EQ(static_cast<size_t>(len), input.size())
         << "i2d_SSL_SESSION(NULL) returned invalid length";
@@ -966,7 +1309,7 @@ TEST(SSLTest, SessionEncoding) {
 }
 
 static void ExpectDefaultVersion(uint16_t min_version, uint16_t max_version,
-                                 const SSL_METHOD *(*method)(void)) {
+                                 const SSL_METHOD *(*method)()) {
   bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(method()));
   ASSERT_TRUE(ctx);
   EXPECT_EQ(min_version, SSL_CTX_get_min_proto_version(ctx.get()));
@@ -985,7 +1328,7 @@ TEST(SSLTest, DefaultVersion) {
 
 TEST(SSLTest, CipherProperties) {
   static const struct {
-    int id;
+    uint16_t protocol_id;
     const char *standard_name;
     int cipher_nid;
     int digest_nid;
@@ -994,7 +1337,7 @@ TEST(SSLTest, CipherProperties) {
     int prf_nid;
   } kTests[] = {
       {
-          SSL3_CK_RSA_DES_192_CBC3_SHA,
+          SSL_CIPHER_RSA_WITH_3DES_EDE_CBC_SHA,
           "TLS_RSA_WITH_3DES_EDE_CBC_SHA",
           NID_des_ede3_cbc,
           NID_sha1,
@@ -1003,7 +1346,7 @@ TEST(SSLTest, CipherProperties) {
           NID_md5_sha1,
       },
       {
-          TLS1_CK_RSA_WITH_AES_128_SHA,
+          SSL_CIPHER_RSA_WITH_AES_128_CBC_SHA,
           "TLS_RSA_WITH_AES_128_CBC_SHA",
           NID_aes_128_cbc,
           NID_sha1,
@@ -1012,7 +1355,7 @@ TEST(SSLTest, CipherProperties) {
           NID_md5_sha1,
       },
       {
-          TLS1_CK_PSK_WITH_AES_256_CBC_SHA,
+          SSL_CIPHER_PSK_WITH_AES_256_CBC_SHA,
           "TLS_PSK_WITH_AES_256_CBC_SHA",
           NID_aes_256_cbc,
           NID_sha1,
@@ -1021,7 +1364,7 @@ TEST(SSLTest, CipherProperties) {
           NID_md5_sha1,
       },
       {
-          TLS1_CK_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+          SSL_CIPHER_ECDHE_RSA_WITH_AES_128_CBC_SHA,
           "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
           NID_aes_128_cbc,
           NID_sha1,
@@ -1030,7 +1373,7 @@ TEST(SSLTest, CipherProperties) {
           NID_md5_sha1,
       },
       {
-          TLS1_CK_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+          SSL_CIPHER_ECDHE_RSA_WITH_AES_256_CBC_SHA,
           "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
           NID_aes_256_cbc,
           NID_sha1,
@@ -1039,7 +1382,7 @@ TEST(SSLTest, CipherProperties) {
           NID_md5_sha1,
       },
       {
-          TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+          SSL_CIPHER_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
           "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
           NID_aes_128_gcm,
           NID_undef,
@@ -1048,7 +1391,7 @@ TEST(SSLTest, CipherProperties) {
           NID_sha256,
       },
       {
-          TLS1_CK_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+          SSL_CIPHER_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
           "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
           NID_aes_128_gcm,
           NID_undef,
@@ -1057,7 +1400,7 @@ TEST(SSLTest, CipherProperties) {
           NID_sha256,
       },
       {
-          TLS1_CK_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+          SSL_CIPHER_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
           "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
           NID_aes_256_gcm,
           NID_undef,
@@ -1066,7 +1409,7 @@ TEST(SSLTest, CipherProperties) {
           NID_sha384,
       },
       {
-          TLS1_CK_ECDHE_PSK_WITH_AES_128_CBC_SHA,
+          SSL_CIPHER_ECDHE_PSK_WITH_AES_128_CBC_SHA,
           "TLS_ECDHE_PSK_WITH_AES_128_CBC_SHA",
           NID_aes_128_cbc,
           NID_sha1,
@@ -1075,7 +1418,7 @@ TEST(SSLTest, CipherProperties) {
           NID_md5_sha1,
       },
       {
-          TLS1_CK_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+          SSL_CIPHER_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
           "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256",
           NID_chacha20_poly1305,
           NID_undef,
@@ -1084,7 +1427,7 @@ TEST(SSLTest, CipherProperties) {
           NID_sha256,
       },
       {
-          TLS1_3_CK_AES_256_GCM_SHA384,
+          SSL_CIPHER_AES_256_GCM_SHA384,
           "TLS_AES_256_GCM_SHA384",
           NID_aes_256_gcm,
           NID_undef,
@@ -1093,7 +1436,7 @@ TEST(SSLTest, CipherProperties) {
           NID_sha384,
       },
       {
-          TLS1_3_CK_AES_128_GCM_SHA256,
+          SSL_CIPHER_AES_128_GCM_SHA256,
           "TLS_AES_128_GCM_SHA256",
           NID_aes_128_gcm,
           NID_undef,
@@ -1102,7 +1445,7 @@ TEST(SSLTest, CipherProperties) {
           NID_sha256,
       },
       {
-          TLS1_3_CK_CHACHA20_POLY1305_SHA256,
+          SSL_CIPHER_CHACHA20_POLY1305_SHA256,
           "TLS_CHACHA20_POLY1305_SHA256",
           NID_chacha20_poly1305,
           NID_undef,
@@ -1115,7 +1458,7 @@ TEST(SSLTest, CipherProperties) {
   for (const auto &t : kTests) {
     SCOPED_TRACE(t.standard_name);
 
-    const SSL_CIPHER *cipher = SSL_get_cipher_by_value(t.id & 0xffff);
+    const SSL_CIPHER *cipher = SSL_get_cipher_by_value(t.protocol_id);
     ASSERT_TRUE(cipher);
     EXPECT_STREQ(t.standard_name, SSL_CIPHER_standard_name(cipher));
 
@@ -1319,7 +1662,7 @@ static bssl::UniquePtr<X509> X509FromBuffer(
   }
   const uint8_t *derp = CRYPTO_BUFFER_data(buffer.get());
   return bssl::UniquePtr<X509>(
-      d2i_X509(NULL, &derp, CRYPTO_BUFFER_len(buffer.get())));
+      d2i_X509(nullptr, &derp, CRYPTO_BUFFER_len(buffer.get())));
 }
 
 static bssl::UniquePtr<X509> GetTestCertificate() {
@@ -1801,6 +2144,103 @@ TEST(SSLTest, AddClientCA) {
   EXPECT_EQ(0, X509_NAME_cmp(sk_X509_NAME_value(list, 2), name1));
 }
 
+TEST(SSLTest, SetGroupIdsWithEqualPreference) {
+  const struct {
+    const char *description;
+    std::vector<uint16_t> groups;
+    std::vector<uint32_t> flags;
+    bool expected_success;
+  } kTests[] = {
+      {
+          "Empty groups / default.",
+          {},
+          {},
+          true,
+      },
+      {
+          "Single group.",
+          {SSL_GROUP_X25519},
+          {0},
+          true,
+      },
+      {
+          "Multiple groups with equal preference.",
+          {SSL_GROUP_X25519_MLKEM768, SSL_GROUP_MLKEM1024},
+          {SSL_GROUP_FLAG_EQUAL_PREFERENCE_WITH_NEXT, 0},
+          true,
+      },
+      {
+          "Singleton followed by multiple groups with equal preference.",
+          {SSL_GROUP_SECP256R1, SSL_GROUP_X25519_MLKEM768, SSL_GROUP_MLKEM1024},
+          {0, SSL_GROUP_FLAG_EQUAL_PREFERENCE_WITH_NEXT, 0},
+          true,
+      },
+      {
+          "Multiple groups with equal preference followed by singleton.",
+          {SSL_GROUP_X25519_MLKEM768, SSL_GROUP_MLKEM1024, SSL_GROUP_SECP256R1},
+          {SSL_GROUP_FLAG_EQUAL_PREFERENCE_WITH_NEXT, 0, 0},
+          true,
+      },
+      {
+          "Config error (last group has equal preference flag).",
+          {SSL_GROUP_X25519_MLKEM768, SSL_GROUP_MLKEM1024},
+          {0, SSL_GROUP_FLAG_EQUAL_PREFERENCE_WITH_NEXT},
+          false,
+      },
+  };
+
+  for (const auto &t : kTests) {
+    SCOPED_TRACE(t.description);
+    ASSERT_EQ(t.groups.size(), t.flags.size()) << "Test setup error.";
+    bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
+    ASSERT_TRUE(ctx);
+    EXPECT_EQ(t.expected_success,
+              SSL_CTX_set1_group_ids_with_flags(
+                  ctx.get(), t.groups.data(), t.flags.data(), t.groups.size()));
+    bssl::UniquePtr<SSL> ssl(SSL_new(ctx.get()));
+    ASSERT_TRUE(ssl);
+    EXPECT_EQ(t.expected_success,
+              SSL_set1_group_ids_with_flags(ssl.get(), t.groups.data(),
+                                            t.flags.data(), t.groups.size()));
+  }
+}
+
+// Test that the SSL group flags are defaulted to zero when zero groups are set
+// (i.e. using the default groups).
+TEST(SSLTest, SetGroupIdsWithFlags_DefaultGroups) {
+  const uint16_t kDefaultGroups[] = {SSL_GROUP_X25519, SSL_GROUP_SECP256R1,
+                                     SSL_GROUP_SECP384R1};
+  const uint32_t kBogusFlags[] = {SSL_GROUP_FLAG_EQUAL_PREFERENCE_WITH_NEXT,
+                                  SSL_GROUP_FLAG_EQUAL_PREFERENCE_WITH_NEXT, 0};
+  bssl::UniquePtr<SSL_CTX> server_ctx =
+      CreateContextWithTestCertificate(TLS_method());
+  ASSERT_TRUE(server_ctx);
+  bssl::UniquePtr<SSL_CTX> client_ctx(SSL_CTX_new(TLS_method()));
+  ASSERT_TRUE(client_ctx);
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
+  bssl::UniquePtr<SSL> client, server;
+  CreateClientAndServer(&client, &server, client_ctx.get(), server_ctx.get());
+
+  // Should set the default groups, and corresponding default (zero) flags.
+  EXPECT_TRUE(
+      SSL_set1_group_ids_with_flags(server.get(), nullptr, kBogusFlags, 0));
+  EXPECT_THAT(server->config->supported_group_list,
+              ElementsAreArray(kDefaultGroups));
+
+  // Set up and run the handshake to show that the bogus "equal preference with
+  // next" flags aren't used, and we simply use the default groups with default
+  // flags configured on the server side.
+  SSL_set_options(server.get(), SSL_OP_CIPHER_SERVER_PREFERENCE);
+  const uint16_t kClientGroups[] = {SSL_GROUP_SECP384R1, SSL_GROUP_SECP256R1,
+                                    SSL_GROUP_X25519};
+  EXPECT_TRUE(SSL_set1_group_ids(client.get(), kClientGroups,
+                                 std::size(kClientGroups)));
+
+  ASSERT_TRUE(CompleteHandshakes(client.get(), server.get()));
+  EXPECT_EQ(SSL_get_group_id(client.get()), SSL_GROUP_X25519);
+}
+
 struct ECHConfigParams {
   uint16_t version = TLSEXT_TYPE_encrypted_client_hello;
   uint16_t config_id = 1;
@@ -2150,6 +2590,8 @@ TEST(SSLTest, ECHClientRandomsMatch) {
 
   bssl::UniquePtr<SSL_CTX> client_ctx(SSL_CTX_new(TLS_method()));
   ASSERT_TRUE(client_ctx);
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
   bssl::UniquePtr<SSL> client, server;
   ASSERT_TRUE(CreateClientAndServer(&client, &server, client_ctx.get(),
                                     server_ctx.get()));
@@ -2514,6 +2956,8 @@ TEST(SSLTest, ECHThreads) {
 
   bssl::UniquePtr<SSL_CTX> client_ctx(SSL_CTX_new(TLS_method()));
   ASSERT_TRUE(client_ctx);
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
   bssl::UniquePtr<SSL> client, server;
   ASSERT_TRUE(CreateClientAndServer(&client, &server, client_ctx.get(),
                                     server_ctx.get()));
@@ -2546,6 +2990,8 @@ TEST(SSLTest, TLS13ExporterAvailability) {
   // Configure only TLS 1.3.
   ASSERT_TRUE(SSL_CTX_set_min_proto_version(client_ctx.get(), TLS1_3_VERSION));
   ASSERT_TRUE(SSL_CTX_set_max_proto_version(client_ctx.get(), TLS1_3_VERSION));
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
 
   bssl::UniquePtr<SSL> client, server;
   ASSERT_TRUE(CreateClientAndServer(&client, &server, client_ctx.get(),
@@ -2761,6 +3207,8 @@ class SSLVersionTest : public ::testing::TestWithParam<VersionParam> {
     ASSERT_TRUE(key_);
     client_ctx_ = CreateContext();
     ASSERT_TRUE(client_ctx_);
+    SSL_CTX_set_custom_verify(client_ctx_.get(), SSL_VERIFY_PEER,
+                              AcceptAnyCertificate);
     server_ctx_ = CreateContext();
     ASSERT_TRUE(server_ctx_);
     // Set up a server cert. Client certs can be set up explicitly.
@@ -3286,6 +3734,8 @@ TEST(SSLTest, WriteAfterWrongVersionOnEarlyData) {
   SSL_CTX_set_early_data_enabled(server_ctx.get(), 1);
   SSL_CTX_set_session_cache_mode(client_ctx.get(), SSL_SESS_CACHE_BOTH);
   SSL_CTX_set_session_cache_mode(server_ctx.get(), SSL_SESS_CACHE_BOTH);
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
 
   // Get an early-data-capable session.
   bssl::UniquePtr<SSL_SESSION> session =
@@ -3344,6 +3794,8 @@ TEST(SSLTest, SessionDuplication) {
       CreateContextWithTestCertificate(TLS_method());
   ASSERT_TRUE(client_ctx);
   ASSERT_TRUE(server_ctx);
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
 
   bssl::UniquePtr<SSL> client, server;
   ASSERT_TRUE(ConnectClientAndServer(&client, &server, client_ctx.get(),
@@ -3507,11 +3959,11 @@ TEST_P(SSLVersionTest, GetPeerCertificate) {
   SSL_CTX_set_verify(client_ctx_.get(),
                      SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
                      nullptr);
-  SSL_CTX_set_cert_verify_callback(client_ctx_.get(), VerifySucceed, NULL);
+  SSL_CTX_set_cert_verify_callback(client_ctx_.get(), VerifySucceed, nullptr);
   SSL_CTX_set_verify(server_ctx_.get(),
                      SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
                      nullptr);
-  SSL_CTX_set_cert_verify_callback(server_ctx_.get(), VerifySucceed, NULL);
+  SSL_CTX_set_cert_verify_callback(server_ctx_.get(), VerifySucceed, nullptr);
 
   ASSERT_TRUE(Connect());
 
@@ -3537,8 +3989,8 @@ TEST_P(SSLVersionTest, GetPeerCertificate) {
 
 TEST_P(SSLVersionTest, NoPeerCertificate) {
   SSL_CTX_set_verify(server_ctx_.get(), SSL_VERIFY_PEER, nullptr);
-  SSL_CTX_set_cert_verify_callback(server_ctx_.get(), VerifySucceed, NULL);
-  SSL_CTX_set_cert_verify_callback(client_ctx_.get(), VerifySucceed, NULL);
+  SSL_CTX_set_cert_verify_callback(server_ctx_.get(), VerifySucceed, nullptr);
+  SSL_CTX_set_cert_verify_callback(client_ctx_.get(), VerifySucceed, nullptr);
 
   ASSERT_TRUE(Connect());
 
@@ -3549,7 +4001,7 @@ TEST_P(SSLVersionTest, NoPeerCertificate) {
 }
 
 TEST_P(SSLVersionTest, RetainOnlySHA256OfCerts) {
-  uint8_t *cert_der = NULL;
+  uint8_t *cert_der = nullptr;
   int cert_der_len = i2d_X509(cert_.get(), &cert_der);
   ASSERT_GE(cert_der_len, 0);
   bssl::UniquePtr<uint8_t> free_cert_der(cert_der);
@@ -3567,8 +4019,8 @@ TEST_P(SSLVersionTest, RetainOnlySHA256OfCerts) {
   SSL_CTX_set_verify(server_ctx_.get(),
                      SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
                      nullptr);
-  SSL_CTX_set_cert_verify_callback(client_ctx_.get(), VerifySucceed, NULL);
-  SSL_CTX_set_cert_verify_callback(server_ctx_.get(), VerifySucceed, NULL);
+  SSL_CTX_set_cert_verify_callback(client_ctx_.get(), VerifySucceed, nullptr);
+  SSL_CTX_set_cert_verify_callback(server_ctx_.get(), VerifySucceed, nullptr);
   SSL_CTX_set_retain_only_sha256_of_client_certs(server_ctx_.get(), 1);
 
   ASSERT_TRUE(Connect());
@@ -3818,8 +4270,9 @@ static int RenewTicketCallback(SSL *ssl, uint8_t *key_name, uint8_t *iv,
     return 0;
   }
 
-  if (!HMAC_Init_ex(hmac_ctx, kZeros, sizeof(kZeros), EVP_sha256(), NULL) ||
-      !EVP_CipherInit_ex(ctx, EVP_aes_128_cbc(), NULL, kZeros, iv, encrypt)) {
+  if (!HMAC_Init_ex(hmac_ctx, kZeros, sizeof(kZeros), EVP_sha256(), nullptr) ||
+      !EVP_CipherInit_ex(ctx, EVP_aes_128_cbc(), nullptr, kZeros, iv,
+                         encrypt)) {
     return -1;
   }
 
@@ -3954,7 +4407,7 @@ TEST_P(SSLVersionTest, SessionTimeout) {
       g_current_time.tv_sec = new_start_time + timeout + 1;
       TRACED_CALL(ExpectSessionReused(client_ctx_.get(), server_ctx_.get(),
                                       new_session.get(),
-                                      false /* expect session ot reused */));
+                                      false /* expect session not reused */));
 
       // Renew the session until it begins just past the auth timeout.
       time_t auth_end_time = kStartTime + SSL_DEFAULT_SESSION_AUTH_TIMEOUT;
@@ -3977,7 +4430,7 @@ TEST_P(SSLVersionTest, SessionTimeout) {
       g_current_time.tv_sec = auth_end_time + 1;
       TRACED_CALL(ExpectSessionReused(client_ctx_.get(), server_ctx_.get(),
                                       new_session.get(),
-                                      false /* expect session ot reused */));
+                                      false /* expect session not reused */));
     } else {
       // The new session is usable just before the old expiration.
       g_current_time.tv_sec = kStartTime + timeout - 1;
@@ -4132,6 +4585,8 @@ TEST(SSLTest, EarlyCallbackVersionSwitch) {
   ASSERT_TRUE(client_ctx);
   ASSERT_TRUE(SSL_CTX_set_max_proto_version(client_ctx.get(), TLS1_3_VERSION));
   ASSERT_TRUE(SSL_CTX_set_max_proto_version(server_ctx.get(), TLS1_3_VERSION));
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
 
   SSL_CTX_set_select_certificate_cb(
       server_ctx.get(),
@@ -4397,8 +4852,8 @@ TEST_P(SSLVersionTest, AutoChain) {
   SSL_CTX_set_verify(server_ctx_.get(),
                      SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
                      nullptr);
-  SSL_CTX_set_cert_verify_callback(client_ctx_.get(), VerifySucceed, NULL);
-  SSL_CTX_set_cert_verify_callback(server_ctx_.get(), VerifySucceed, NULL);
+  SSL_CTX_set_cert_verify_callback(client_ctx_.get(), VerifySucceed, nullptr);
+  SSL_CTX_set_cert_verify_callback(server_ctx_.get(), VerifySucceed, nullptr);
 
   // By default, the client and server should each only send the leaf.
   ASSERT_TRUE(Connect());
@@ -4820,8 +5275,8 @@ TEST_P(SSLVersionTest, SmallBuffer) {
 }
 
 TEST(SSLTest, AddChainCertHack) {
-  // Ensure that we don't accidently break the hack that we have in place to
-  // keep curl and serf happy when they use an |X509| even after transfering
+  // Ensure that we don't accidentally break the hack that we have in place to
+  // keep curl and serf happy when they use an |X509| even after transferring
   // ownership.
 
   bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
@@ -4987,6 +5442,7 @@ TEST(SSLTest, OverrideKeyMethodWithKey) {
   bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
   ASSERT_TRUE(ctx);
   ASSERT_TRUE(SSL_CTX_use_certificate(ctx.get(), leaf.get()));
+  SSL_CTX_set_custom_verify(ctx.get(), SSL_VERIFY_PEER, AcceptAnyCertificate);
 
   // Configuring an |SSL_PRIVATE_KEY_METHOD| and then overwriting it with an
   // |EVP_PKEY| should clear the |SSL_PRIVATE_KEY_METHOD|.
@@ -5020,6 +5476,7 @@ TEST(SSLTest, OverrideChain) {
   ASSERT_TRUE(ctx);
   ASSERT_TRUE(SSL_CTX_use_certificate(ctx.get(), leaf.get()));
   ASSERT_TRUE(SSL_CTX_use_PrivateKey(ctx.get(), key.get()));
+  SSL_CTX_set_custom_verify(ctx.get(), SSL_VERIFY_PEER, AcceptAnyCertificate);
 
   // Configure one chain, then replace it with another. Note this API considers
   // the chain to exclude the leaf.
@@ -5054,6 +5511,7 @@ TEST(SSLTest, OverrideChainAndKey) {
   certs = {leaf2.get()};
   ASSERT_TRUE(SSL_CTX_set_chain_and_key(ctx.get(), certs.data(), certs.size(),
                                         key2.get(), nullptr));
+  SSL_CTX_set_custom_verify(ctx.get(), SSL_VERIFY_PEER, AcceptAnyCertificate);
 
   bssl::UniquePtr<SSL> client, server;
   ASSERT_TRUE(ConnectClientAndServer(&client, &server, ctx.get(), ctx.get()));
@@ -5082,12 +5540,16 @@ TEST(SSLTest, CredentialChains) {
   std::vector<CRYPTO_BUFFER *> wrong_chain = {leaf.get(), leaf.get(),
                                               leaf.get()};
 
-  bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
-  ASSERT_TRUE(ctx);
+  bssl::UniquePtr<SSL_CTX> client_ctx(SSL_CTX_new(TLS_method()));
+  ASSERT_TRUE(client_ctx);
+  bssl::UniquePtr<SSL_CTX> server_ctx(SSL_CTX_new(TLS_method()));
+  ASSERT_TRUE(server_ctx);
   bssl::UniquePtr<SSL_CREDENTIAL> cred(SSL_CREDENTIAL_new_x509());
   ASSERT_TRUE(cred);
   bssl::UniquePtr<SSL_CREDENTIAL> cred2(SSL_CREDENTIAL_new_x509());
   ASSERT_TRUE(cred2);
+
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER, AcceptAnyCertificate);
 
   // Configure one chain (including the leaf), then replace it with another.
   ASSERT_TRUE(SSL_CREDENTIAL_set1_cert_chain(cred.get(), wrong_chain.data(),
@@ -5123,13 +5585,13 @@ TEST(SSLTest, CredentialChains) {
   ASSERT_TRUE(SSL_CREDENTIAL_set1_private_key(cred2.get(), testkey.get()));
   SSL_CREDENTIAL_set_must_match_issuer(cred.get(), 1);
   SSL_CREDENTIAL_set_must_match_issuer(cred2.get(), 1);
-  ASSERT_TRUE(SSL_CTX_add1_credential(ctx.get(), cred.get()));
-  ASSERT_TRUE(SSL_CTX_add1_credential(ctx.get(), cred2.get()));
+  ASSERT_TRUE(SSL_CTX_add1_credential(server_ctx.get(), cred.get()));
+  ASSERT_TRUE(SSL_CTX_add1_credential(server_ctx.get(), cred2.get()));
 
   bssl::UniquePtr<SSL> client, server;
 
   // With no CA requested by client, we should fail with only cred1 and cred2
-  ASSERT_FALSE(ConnectClientAndServer(&client, &server, ctx.get(), ctx.get()));
+  ASSERT_FALSE(ConnectClientAndServer(&client, &server, client_ctx.get(), server_ctx.get()));
 
   // Have the client request a bogus name that will not match
   bssl::UniquePtr<CRYPTO_BUFFER> bogus_subject = GetBogusIssuerBuffer();
@@ -5143,8 +5605,8 @@ TEST(SSLTest, CredentialChains) {
   bogus_subject_config.ca_names = bogus_subjects.get();
   bogus_subjects.release();
   // A bogus issuer that does not match should fail
-  ASSERT_FALSE(ConnectClientAndServer(&client2, &server2, ctx.get(), ctx.get(),
-                                      bogus_subject_config));
+  ASSERT_FALSE(ConnectClientAndServer(&client2, &server2, client_ctx.get(),
+                                      server_ctx.get(), bogus_subject_config));
 
   // Have the client request the name of the chain ca.
   bssl::UniquePtr<CRYPTO_BUFFER> chain_subject =
@@ -5159,8 +5621,8 @@ TEST(SSLTest, CredentialChains) {
   chain_subject_config.ca_names = chain_subjects.get();
   chain_subjects.release();
   // If we ask for the chain ca subject, we should get it
-  ASSERT_TRUE(ConnectClientAndServer(&client3, &server3, ctx.get(), ctx.get(),
-                                     chain_subject_config));
+  ASSERT_TRUE(ConnectClientAndServer(&client3, &server3, client_ctx.get(),
+                                     server_ctx.get(), chain_subject_config));
   EXPECT_TRUE(BuffersEqual(SSL_get0_peer_certificates(client3.get()),
                            {leaf.get(), ca.get()}));
 
@@ -5176,8 +5638,8 @@ TEST(SSLTest, CredentialChains) {
   test_subject_config.ca_names = test_subjects.get();
   test_subjects.release();
   // If we ask for the test ca subject, we should get it
-  ASSERT_TRUE(ConnectClientAndServer(&client4, &server4, ctx.get(), ctx.get(),
-                                     test_subject_config));
+  ASSERT_TRUE(ConnectClientAndServer(&client4, &server4, client_ctx.get(),
+                                     server_ctx.get(), test_subject_config));
   EXPECT_TRUE(BuffersEqual(SSL_get0_peer_certificates(client4.get()),
                            {testcert.get()}));
 
@@ -5187,11 +5649,12 @@ TEST(SSLTest, CredentialChains) {
   ASSERT_TRUE(
       SSL_CREDENTIAL_set1_cert_chain(cred3.get(), chain.data(), chain.size()));
   ASSERT_TRUE(SSL_CREDENTIAL_set1_private_key(cred3.get(), key.get()));
-  ASSERT_TRUE(SSL_CTX_add1_credential(ctx.get(), cred3.get()));
+  ASSERT_TRUE(SSL_CTX_add1_credential(server_ctx.get(), cred3.get()));
 
   // With no CA sent, we should now succeed.
   bssl::UniquePtr<SSL> client5, server5;
-  ASSERT_TRUE(ConnectClientAndServer(&client5, &server5, ctx.get(), ctx.get()));
+  ASSERT_TRUE(ConnectClientAndServer(&client5, &server5, client_ctx.get(),
+                                     server_ctx.get()));
   EXPECT_TRUE(BuffersEqual(SSL_get0_peer_certificates(client5.get()),
                            {leaf.get(), ca.get()}));
 }
@@ -5678,6 +6141,8 @@ TEST_P(TicketAEADMethodTest, Resume) {
   ASSERT_TRUE(server_ctx);
   bssl::UniquePtr<SSL_CTX> client_ctx(SSL_CTX_new(TLS_method()));
   ASSERT_TRUE(client_ctx);
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
 
   const uint16_t version = testing::get<0>(GetParam());
   const unsigned retry_count = testing::get<1>(GetParam());
@@ -5960,6 +6425,7 @@ TEST(SSLTest, ShutdownIgnoresTickets) {
   ASSERT_TRUE(ctx);
   ASSERT_TRUE(SSL_CTX_set_min_proto_version(ctx.get(), TLS1_3_VERSION));
   ASSERT_TRUE(SSL_CTX_set_max_proto_version(ctx.get(), TLS1_3_VERSION));
+  SSL_CTX_set_custom_verify(ctx.get(), SSL_VERIFY_PEER, AcceptAnyCertificate);
 
   SSL_CTX_set_session_cache_mode(ctx.get(), SSL_SESS_CACHE_BOTH);
 
@@ -6053,6 +6519,8 @@ TEST(SSLTest, CertCompression) {
       client_ctx.get(), 0x1234, XORCompressFunc, XORDecompressFunc));
   ASSERT_TRUE(SSL_CTX_add_cert_compression_alg(
       server_ctx.get(), 0x1234, XORCompressFunc, XORDecompressFunc));
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
 
   bssl::UniquePtr<SSL> client, server;
   ASSERT_TRUE(ConnectClientAndServer(&client, &server, client_ctx.get(),
@@ -6100,6 +6568,8 @@ void VerifyHandoff(bool use_new_alps_codepoint) {
   uint8_t keys[48];
   SSL_CTX_get_tlsext_ticket_keys(server_ctx.get(), &keys, sizeof(keys));
   SSL_CTX_set_tlsext_ticket_keys(handshaker_ctx.get(), &keys, sizeof(keys));
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
 
   for (bool early_data : {false, true}) {
     SCOPED_TRACE(early_data);
@@ -6237,6 +6707,8 @@ TEST(SSLTest, HandoffDeclined) {
 
   SSL_CTX_set_handoff_mode(server_ctx.get(), true);
   ASSERT_TRUE(SSL_CTX_set_max_proto_version(server_ctx.get(), TLS1_2_VERSION));
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
 
   bssl::UniquePtr<SSL> client, server;
   ASSERT_TRUE(CreateClientAndServer(&client, &server, client_ctx.get(),
@@ -6481,15 +6953,18 @@ TEST(SSLTest, ApplyHandoffRemovesUnsupportedCurves) {
       0x02, 0x00, 0x17,
   };
 
-  // The zero length means that the default list of groups is used.
-  EXPECT_EQ(0u, server->config->supported_group_list.size());
+  // The default list of groups is used before applying the handoff.
+  EXPECT_THAT(server->config->supported_group_list,
+              ElementsAreArray({SSL_GROUP_X25519, SSL_GROUP_SECP256R1,
+                                SSL_GROUP_SECP384R1}));
   ASSERT_TRUE(SSL_apply_handoff(server.get(), handoff));
   EXPECT_EQ(1u, server->config->supported_group_list.size());
+  EXPECT_EQ(SSL_GROUP_SECP256R1, server->config->supported_group_list[0]);
 }
 
 TEST(SSLTest, ZeroSizedWiteFlushesHandshakeMessages) {
-  // If there are pending handshake mesages, an |SSL_write| of zero bytes should
-  // flush them.
+  // If there are pending handshake messages, an |SSL_write| of zero bytes
+  // should flush them.
   bssl::UniquePtr<SSL_CTX> server_ctx(
       CreateContextWithTestCertificate(TLS_method()));
   ASSERT_TRUE(server_ctx);
@@ -6500,6 +6975,8 @@ TEST(SSLTest, ZeroSizedWiteFlushesHandshakeMessages) {
   ASSERT_TRUE(client_ctx);
   EXPECT_TRUE(SSL_CTX_set_max_proto_version(client_ctx.get(), TLS1_3_VERSION));
   EXPECT_TRUE(SSL_CTX_set_min_proto_version(client_ctx.get(), TLS1_3_VERSION));
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
 
   bssl::UniquePtr<SSL> client, server;
   ASSERT_TRUE(ConnectClientAndServer(&client, &server, client_ctx.get(),
@@ -6951,13 +7428,13 @@ class MockQUICTransport {
     }
 
     if (level != ssl_encryption_early_data &&
-        SSL_CIPHER_get_id(cipher) != levels_[level].cipher) {
+        SSL_CIPHER_get_protocol_id(cipher) != levels_[level].cipher) {
       ADD_FAILURE() << "Cipher suite inconsistent";
       return false;
     }
 
     levels_[level].read_secret.assign(secret.begin(), secret.end());
-    levels_[level].cipher = SSL_CIPHER_get_id(cipher);
+    levels_[level].cipher = SSL_CIPHER_get_protocol_id(cipher);
     return true;
   }
 
@@ -6979,7 +7456,7 @@ class MockQUICTransport {
     }
 
     levels_[level].write_secret.assign(secret.begin(), secret.end());
-    levels_[level].cipher = SSL_CIPHER_get_id(cipher);
+    levels_[level].cipher = SSL_CIPHER_get_protocol_id(cipher);
     return true;
   }
 
@@ -7084,7 +7561,7 @@ class MockQUICTransport {
     std::vector<uint8_t> write_data;
     std::vector<uint8_t> write_secret;
     std::vector<uint8_t> read_secret;
-    uint32_t cipher = 0;
+    uint16_t cipher = 0;
   };
   Level levels_[kNumQUICLevels];
 };
@@ -7130,6 +7607,8 @@ class QUICMethodTest : public testing::Test {
     SSL_CTX_set_max_proto_version(server_ctx_.get(), TLS1_3_VERSION);
     SSL_CTX_set_min_proto_version(client_ctx_.get(), TLS1_3_VERSION);
     SSL_CTX_set_max_proto_version(client_ctx_.get(), TLS1_3_VERSION);
+    SSL_CTX_set_custom_verify(client_ctx_.get(), SSL_VERIFY_PEER,
+                              AcceptAnyCertificate);
 
     static const uint8_t kALPNProtos[] = {0x03, 'f', 'o', 'o'};
     ASSERT_EQ(SSL_CTX_set_alpn_protos(client_ctx_.get(), kALPNProtos,
@@ -8091,6 +8570,8 @@ TEST_F(QUICMethodTest, ForbidCrossProtocolResumptionServer) {
   // Attempt a resumption with g_last_session using TLS_method.
   bssl::UniquePtr<SSL_CTX> client_ctx(SSL_CTX_new(TLS_method()));
   ASSERT_TRUE(client_ctx);
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
 
   ASSERT_TRUE(SSL_CTX_set_quic_method(server_ctx_.get(), nullptr));
 
@@ -8239,9 +8720,11 @@ TEST_F(QUICMethodTest, QuicCodePointDefault) {
   ASSERT_TRUE(CompleteHandshakesForQUIC());
 }
 
-extern "C" {
-int BORINGSSL_enum_c_type_test(void);
-}
+}  // namespace
+
+extern "C" int BORINGSSL_enum_c_type_test();
+
+namespace {
 
 TEST(SSLTest, EnumTypes) {
   EXPECT_EQ(sizeof(int), sizeof(ssl_private_key_result_t));
@@ -8531,6 +9014,7 @@ TEST(SSLTest, WriteWhileExplicitRenegotiate) {
   ASSERT_TRUE(SSL_CTX_set_max_proto_version(ctx.get(), TLS1_2_VERSION));
   ASSERT_TRUE(SSL_CTX_set_strict_cipher_list(
       ctx.get(), "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"));
+  SSL_CTX_set_custom_verify(ctx.get(), SSL_VERIFY_PEER, AcceptAnyCertificate);
 
   bssl::UniquePtr<SSL> client, server;
   ASSERT_TRUE(CreateClientAndServer(&client, &server, ctx.get(), ctx.get()));
@@ -8608,6 +9092,7 @@ TEST(SSLTest, ConnectionPropertiesDuringRenegotiate) {
       ctx.get(), "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"));
   ASSERT_TRUE(SSL_CTX_set1_groups_list(ctx.get(), "X25519"));
   ASSERT_TRUE(SSL_CTX_set1_sigalgs_list(ctx.get(), "rsa_pkcs1_sha256"));
+  SSL_CTX_set_custom_verify(ctx.get(), SSL_VERIFY_PEER, AcceptAnyCertificate);
 
   // Connect a client and server that accept renegotiation.
   bssl::UniquePtr<SSL> client, server;
@@ -8619,6 +9104,8 @@ TEST(SSLTest, ConnectionPropertiesDuringRenegotiate) {
     EXPECT_EQ(SSL_version(client.get()), TLS1_2_VERSION);
     const SSL_CIPHER *cipher = SSL_get_current_cipher(client.get());
     ASSERT_TRUE(cipher);
+    EXPECT_EQ(SSL_CIPHER_get_protocol_id(cipher),
+              uint16_t{SSL_CIPHER_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256});
     EXPECT_EQ(SSL_CIPHER_get_id(cipher),
               uint32_t{TLS1_CK_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256});
     EXPECT_EQ(SSL_get_group_id(client.get()), SSL_GROUP_X25519);
@@ -8656,6 +9143,8 @@ TEST(SSLTest, CopyWithoutEarlyData) {
   SSL_CTX_set_session_cache_mode(server_ctx.get(), SSL_SESS_CACHE_BOTH);
   SSL_CTX_set_early_data_enabled(client_ctx.get(), 1);
   SSL_CTX_set_early_data_enabled(server_ctx.get(), 1);
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
 
   bssl::UniquePtr<SSL_SESSION> session =
       CreateClientSession(client_ctx.get(), server_ctx.get());
@@ -8703,6 +9192,8 @@ TEST(SSLTest, ProcessTLS13NewSessionTicket) {
   ASSERT_TRUE(SSL_CTX_set_min_proto_version(server_ctx.get(), TLS1_3_VERSION));
   ASSERT_TRUE(SSL_CTX_set_max_proto_version(client_ctx.get(), TLS1_3_VERSION));
   ASSERT_TRUE(SSL_CTX_set_max_proto_version(server_ctx.get(), TLS1_3_VERSION));
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
 
   bssl::UniquePtr<SSL> client, server;
   ASSERT_TRUE(ConnectClientAndServer(&client, &server, client_ctx.get(),
@@ -8760,6 +9251,8 @@ TEST(SSLTest, BIO) {
       CreateContextWithTestCertificate(TLS_method()));
   ASSERT_TRUE(client_ctx);
   ASSERT_TRUE(server_ctx);
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
 
   for (bool take_ownership : {true, false}) {
     // For simplicity, get the handshake out of the way first.
@@ -8816,6 +9309,7 @@ TEST(SSLTest, ALPNConfig) {
   ASSERT_TRUE(key);
   ASSERT_TRUE(SSL_CTX_use_certificate(ctx.get(), cert.get()));
   ASSERT_TRUE(SSL_CTX_use_PrivateKey(ctx.get(), key.get()));
+  SSL_CTX_set_custom_verify(ctx.get(), SSL_VERIFY_PEER, AcceptAnyCertificate);
 
   // Set up some machinery to check the configured ALPN against what is actually
   // sent over the wire. Note that the ALPN callback is only called when the
@@ -8866,6 +9360,8 @@ class AlpsNewCodepointTest : public testing::Test {
     server_ctx_ = CreateContextWithTestCertificate(TLS_method());
     ASSERT_TRUE(client_ctx_);
     ASSERT_TRUE(server_ctx_);
+    SSL_CTX_set_custom_verify(client_ctx_.get(), SSL_VERIFY_PEER,
+                              AcceptAnyCertificate);
   }
 
   void SetUpApplicationSetting() {
@@ -9038,6 +9534,8 @@ TEST(SSLTest, CanReleasePrivateKey) {
       CreateContextWithTestCertificate(TLS_method());
   ASSERT_TRUE(client_ctx);
   SSL_CTX_set_session_cache_mode(client_ctx.get(), SSL_SESS_CACHE_BOTH);
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
 
   // Note this assumes the transport buffer is large enough to fit the client
   // and server first flights. We check this with |SSL_ERROR_WANT_READ|. If the
@@ -9376,6 +9874,8 @@ TEST(SSLTest, NumTickets) {
   ASSERT_TRUE(SSL_CTX_use_PrivateKey(server_ctx.get(), key.get()));
   SSL_CTX_set_session_cache_mode(server_ctx.get(), SSL_SESS_CACHE_BOTH);
 
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
   SSL_CTX_set_session_cache_mode(client_ctx.get(), SSL_SESS_CACHE_BOTH);
   static size_t ticket_count;
   SSL_CTX_sess_set_new_cb(client_ctx.get(), [](SSL *, SSL_SESSION *) -> int {
@@ -9791,6 +10291,8 @@ TEST(SSLTest, EmptyWriteBlockedOnHandshakeData) {
   // Configure only TLS 1.3. This test requires post-handshake NewSessionTicket.
   ASSERT_TRUE(SSL_CTX_set_min_proto_version(client_ctx.get(), TLS1_3_VERSION));
   ASSERT_TRUE(SSL_CTX_set_max_proto_version(client_ctx.get(), TLS1_3_VERSION));
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
 
   // Connect a client and server with tiny buffer between the two.
   bssl::UniquePtr<SSL> client(SSL_new(client_ctx.get())),
@@ -9864,6 +10366,8 @@ TEST(SSLTest, ErrorSyscallAfterCloseNotify) {
       CreateContextWithTestCertificate(TLS_method());
   ASSERT_TRUE(client_ctx);
   ASSERT_TRUE(server_ctx);
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
   bssl::UniquePtr<SSL> client, server;
   ASSERT_TRUE(ConnectClientAndServer(&client, &server, client_ctx.get(),
                                      server_ctx.get()));
@@ -9929,6 +10433,8 @@ TEST(SSLTest, QuietShutdown) {
       CreateContextWithTestCertificate(TLS_method());
   ASSERT_TRUE(client_ctx);
   ASSERT_TRUE(server_ctx);
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
   SSL_CTX_set_quiet_shutdown(server_ctx.get(), 1);
   bssl::UniquePtr<SSL> client, server;
   ASSERT_TRUE(ConnectClientAndServer(&client, &server, client_ctx.get(),
@@ -9986,6 +10492,16 @@ TEST(SSLTest, InvalidGroups) {
   static const int kInvalidNIDs[] = {NID_rsaEncryption};
   EXPECT_FALSE(
       SSL_CTX_set1_groups(ctx.get(), kInvalidNIDs, std::size(kInvalidNIDs)));
+
+  // Duplicates are not allowed.
+  static const uint16_t kDuplicateIDs[] = {SSL_GROUP_X25519_MLKEM768,
+                                           SSL_GROUP_X25519, SSL_GROUP_X25519};
+  EXPECT_FALSE(SSL_CTX_set1_group_ids(ctx.get(), kDuplicateIDs,
+                                      std::size(kDuplicateIDs)));
+  static const int kDuplicateNIDs[] = {NID_X25519, NID_X9_62_prime256v1,
+                                       NID_X25519};
+  EXPECT_FALSE(SSL_CTX_set1_groups(ctx.get(), kDuplicateNIDs,
+                                   std::size(kDuplicateNIDs)));
 }
 
 TEST(SSLTest, NameLists) {
@@ -10316,6 +10832,8 @@ TEST(SSLTest, EarlyDataVersionMismatch) {
   SSL_CTX_set_early_data_enabled(server_ctx.get(), 1);
   SSL_CTX_set_session_cache_mode(client_ctx.get(), SSL_SESS_CACHE_BOTH);
   SSL_CTX_set_session_cache_mode(server_ctx.get(), SSL_SESS_CACHE_BOTH);
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
 
   bssl::UniquePtr<SSL_SESSION> session =
       CreateClientSession(client_ctx.get(), server_ctx.get());
@@ -10382,6 +10900,8 @@ TEST(SSLTest, EarlyDataDisabledInDTLS13) {
   ASSERT_TRUE(SSL_CTX_set_max_proto_version(client_ctx.get(), DTLS1_3_VERSION));
   ASSERT_TRUE(SSL_CTX_set_min_proto_version(server_ctx.get(), DTLS1_3_VERSION));
   ASSERT_TRUE(SSL_CTX_set_max_proto_version(server_ctx.get(), DTLS1_3_VERSION));
+  SSL_CTX_set_custom_verify(client_ctx.get(), SSL_VERIFY_PEER,
+                            AcceptAnyCertificate);
 
   bssl::UniquePtr<SSL_SESSION> session =
       CreateClientSession(client_ctx.get(), server_ctx.get());
@@ -10395,6 +10915,7 @@ TEST(SSLTest, IDOnlyTLS13Session) {
   ASSERT_TRUE(ctx);
   SSL_CTX_set_session_cache_mode(ctx.get(),
                                  SSL_SESS_CACHE_CLIENT | SSL_SESS_CACHE_SERVER);
+  SSL_CTX_set_custom_verify(ctx.get(), SSL_VERIFY_PEER, AcceptAnyCertificate);
 
   ASSERT_TRUE(SSL_CTX_set_max_proto_version(ctx.get(), TLS1_3_VERSION));
   bssl::UniquePtr<SSL_SESSION> session =
@@ -10586,7 +11107,8 @@ TEST(SSLTest, ParseClientHello) {
         // record_size_limit
         0x00, 0x1c, 0x00, 0x02, 0x40, 0x01};
 
-    auto in = dtls ? Span(kClientHelloDTLS) : Span(kClientHelloTLS);
+    auto in = dtls ? Span<const uint8_t>(kClientHelloDTLS)
+                   : Span<const uint8_t>(kClientHelloTLS);
     SSL_CLIENT_HELLO client_hello;
     ASSERT_TRUE(
         SSL_parse_client_hello(ssl.get(), &client_hello, in.data(), in.size()));

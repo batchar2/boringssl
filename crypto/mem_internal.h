@@ -52,6 +52,25 @@ T *New(Args &&...args) {
   return new (t) T(std::forward<Args>(args)...);
 }
 
+// NewZeroed behaves like |new| but uses |OPENSSL_zalloc| for memory
+// allocation, thereby zeroing the memory prior to calling constructors. It
+// returns nullptr on allocation error. It only implements single-object
+// allocation and not new T[n].
+//
+// Note: unlike |new|, this does not support non-public constructors.
+//
+// TODO(crbug.com/42220000): Actually replace calls to this by explicitly
+// setting default values in the structs, or - when it can be shown this is not
+// necessary - simply by |New|.
+template <typename T, typename... Args>
+T *NewZeroed(Args &&...args) {
+  void *t = OPENSSL_zalloc(sizeof(T));
+  if (t == nullptr) {
+    return nullptr;
+  }
+  return new (t) T(std::forward<Args>(args)...);
+}
+
 // Delete behaves like |delete| but uses |OPENSSL_free| to release memory.
 //
 // Note: unlike |delete| this does not support non-public destructors.
@@ -86,6 +105,8 @@ UniquePtr<T> MakeUnique(Args &&...args) {
 template <typename T>
 class Array {
  public:
+  using value_type = std::remove_cv_t<T>;
+
   // Array's default constructor creates an empty array.
   Array() {}
   Array(const Array &) = delete;
@@ -377,6 +398,8 @@ using PackedSize = std::conditional_t<
 template <typename T, size_t N>
 class InplaceVector {
  public:
+  using value_type = std::remove_cv_t<T>;
+
   InplaceVector() = default;
   InplaceVector(const InplaceVector &other) { *this = other; }
   InplaceVector(InplaceVector &&other) { *this = std::move(other); }
@@ -491,6 +514,17 @@ class InplaceVector {
     return true;
   }
 
+  // TryAppend appends the vector by a copy of |in| and returns true, or
+  // returns false if |in| is too large.
+  [[nodiscard]] bool TryAppend(Span<const T> in) {
+    if (in.size() > capacity() - size()) {
+      return false;
+    }
+    std::uninitialized_copy(in.begin(), in.end(), &data()[size_]);
+    size_ += in.size();
+    return true;
+  }
+
   // TryPushBack appends |val| to the vector and returns a pointer to the
   // newly-inserted value, or nullptr if the vector is at capacity.
   [[nodiscard]] T *TryPushBack(T val) {
@@ -510,6 +544,7 @@ class InplaceVector {
     BSSL_CHECK(TryResizeForOverwrite(size));
   }
   void CopyFrom(Span<const T> in) { BSSL_CHECK(TryCopyFrom(in)); }
+  void Append(Span<const T> in) { BSSL_CHECK(TryAppend(in)); }
   T &PushBack(T val) {
     T *ret = TryPushBack(std::move(val));
     BSSL_CHECK(ret != nullptr);
