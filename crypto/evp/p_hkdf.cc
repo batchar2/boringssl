@@ -27,6 +27,8 @@
 
 using namespace bssl;
 
+namespace {
+
 typedef struct {
   int mode;
   const EVP_MD *md;
@@ -37,8 +39,8 @@ typedef struct {
   CBB info;
 } HKDF_PKEY_CTX;
 
-static int pkey_hkdf_init(EvpPkeyCtx *ctx) {
-  HKDF_PKEY_CTX *hctx = NewZeroed<HKDF_PKEY_CTX>();
+static int pkey_hkdf_init(EvpPkeyCtx *ctx, const EVP_PKEY_ALG *) {
+  HKDF_PKEY_CTX *hctx = New<HKDF_PKEY_CTX>();
   if (hctx == nullptr) {
     return 0;
   }
@@ -53,7 +55,7 @@ static int pkey_hkdf_init(EvpPkeyCtx *ctx) {
 }
 
 static int pkey_hkdf_copy(EvpPkeyCtx *dst, EvpPkeyCtx *src) {
-  if (!pkey_hkdf_init(dst)) {
+  if (!pkey_hkdf_init(dst, nullptr)) {
     return 0;
   }
 
@@ -185,8 +187,10 @@ static int pkey_hkdf_ctrl(EvpPkeyCtx *ctx, int type, int p1, void *p2) {
   }
 }
 
-const EVP_PKEY_CTX_METHOD bssl::hkdf_pkey_meth = {
-    /*pkey_id=*/EVP_PKEY_HKDF,  pkey_hkdf_init,   pkey_hkdf_copy,
+const EVP_PKEY_CTX_METHOD hkdf_pkey_meth = {
+    EVP_PKEY_HKDF,
+    pkey_hkdf_init,
+    pkey_hkdf_copy,
     pkey_hkdf_cleanup,
     /*keygen=*/nullptr,
     /*sign=*/nullptr,
@@ -195,9 +199,18 @@ const EVP_PKEY_CTX_METHOD bssl::hkdf_pkey_meth = {
     /*verify_message=*/nullptr,
     /*verify_recover=*/nullptr,
     /*encrypt=*/nullptr,
-    /*decrypt=*/nullptr,        pkey_hkdf_derive,
-    /*paramgen=*/nullptr,       pkey_hkdf_ctrl,
+    /*decrypt=*/nullptr,
+    pkey_hkdf_derive,
+    /*paramgen=*/nullptr,
+    pkey_hkdf_ctrl,
 };
+
+}  // namespace
+
+const EVP_PKEY_ALG *bssl::evp_pkey_hkdf() {
+  static const EVP_PKEY_ALG kAlg = {nullptr, &hkdf_pkey_meth};
+  return &kAlg;
+}
 
 int EVP_PKEY_CTX_hkdf_mode(EVP_PKEY_CTX *ctx, int mode) {
   return EVP_PKEY_CTX_ctrl(ctx, EVP_PKEY_HKDF, EVP_PKEY_OP_DERIVE,

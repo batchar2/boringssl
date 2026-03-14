@@ -671,7 +671,6 @@ boringssl_crypto_internal_headers := \
   crypto/pkcs8/internal.h \
   crypto/poly1305/internal.h \
   crypto/pool/internal.h \
-  crypto/rand/getrandom_fillin.h \
   crypto/rand/internal.h \
   crypto/rsa/internal.h \
   crypto/spake2plus/internal.h \
@@ -2827,8 +2826,23 @@ boringssl_rust_bssl_crypto_sources := \
   rust/bssl-crypto/src/tls12_prf.rs \
   rust/bssl-crypto/src/x25519.rs
 
+boringssl_rust_bssl_macros_sources := \
+  rust/bssl-macros/src/lib.rs
+
 boringssl_rust_bssl_sys_sources := \
   rust/bssl-sys/src/lib.rs
+
+boringssl_rust_bssl_x509_sources := \
+  rust/bssl-x509/src/certificates.rs \
+  rust/bssl-x509/src/errors.rs \
+  rust/bssl-x509/src/ffi.rs \
+  rust/bssl-x509/src/keys.rs \
+  rust/bssl-x509/src/lib.rs \
+  rust/bssl-x509/src/oids.rs \
+  rust/bssl-x509/src/params.rs \
+  rust/bssl-x509/src/store.rs \
+  rust/bssl-x509/src/tests.rs \
+  rust/bssl-x509/src/verify.rs
 
 boringssl_ssl_sources := \
   ssl/bio_ssl.cc \

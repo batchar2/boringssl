@@ -12,16 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! BoringSSL-backed [`rustls::crypto::CryptoProvider`].
+#![deny(
+    missing_docs,
+    unsafe_op_in_unsafe_fn,
+    clippy::indexing_slicing,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::expect_used
+)]
+#![allow(private_bounds)]
+
+//! BoringSSL-backed [`rustls`] adapters.
 //!
-//! This module provides [`CryptoProviderBuilder`], which constructs a
-//! [`rustls::crypto::CryptoProvider`] backed by BoringSSL. The resulting
-//! provider can be used with [`rustls`] to establish TLS 1.2 and TLS 1.3
+//! This crate provides a [`rustls::crypto::CryptoProvider`] backed by
+//! BoringSSL, for use with the [`rustls`] TLS stack.
+//! The resulting provider can be used with [`rustls`] to establish TLS 1.2 and TLS 1.3
 //! connections.
 //!
 //! ```
 //! use std::sync::Arc;
-//! use bssl_tls::rustls_provider::CryptoProviderBuilder;
+//! use bssl_rustls_adapters::CryptoProviderBuilder;
 //! use rustls::client::ClientConfig;
 //!
 //! let provider = CryptoProviderBuilder::full();
@@ -37,7 +47,7 @@
 //!
 //! ```
 //! use std::sync::Arc;
-//! use bssl_tls::rustls_provider::{CryptoProviderBuilder, cipher_suites, key_exchange};
+//! use bssl_rustls_adapters::{CryptoProviderBuilder, cipher_suites, key_exchange};
 //! use rustls::{SupportedCipherSuite, client::ClientConfig};
 //!
 //! let provider = CryptoProviderBuilder::new()
@@ -52,6 +62,9 @@
 //!     .with_root_certificates(rustls::RootCertStore::empty())
 //!     .with_no_client_auth();
 //! ```
+
+extern crate alloc;
+extern crate core;
 
 use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
 use bssl_sys::RAND_bytes;

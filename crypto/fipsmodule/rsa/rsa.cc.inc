@@ -165,35 +165,32 @@ RSA *RSA_new_private_key_large_e(const BIGNUM *n, const BIGNUM *e,
   return rsa;
 }
 
+RSAImpl::RSAImpl(const ENGINE *engine)
+    : RefCounted(CheckSubClass()),
+      meth(engine ? ENGINE_get_RSA_method(engine) : nullptr) {
+  if (meth == nullptr) {
+    meth = const_cast<RSA_METHOD *>(RSA_default_method());
+  }
+  METHOD_ref(meth);
+  flags = meth->flags;
+  CRYPTO_new_ex_data(&ex_data);
+}
+
 RSA *RSA_new() { return RSA_new_method(nullptr); }
 
 RSA *RSA_new_method(const ENGINE *engine) {
-  RSAImpl *rsa = NewZeroed<RSAImpl>();
+  UniquePtr<RSAImpl> rsa(New<RSAImpl>(engine));
   if (rsa == nullptr) {
     return nullptr;
   }
 
-  if (engine) {
-    rsa->meth = ENGINE_get_RSA_method(engine);
-  }
-
-  if (rsa->meth == nullptr) {
-    rsa->meth = (RSA_METHOD *)RSA_default_method();
-  }
-  METHOD_ref(rsa->meth);
-
-  rsa->references = 1;
-  rsa->flags = rsa->meth->flags;
-  CRYPTO_MUTEX_init(&rsa->lock);
-  CRYPTO_new_ex_data(&rsa->ex_data);
-
-  if (rsa->meth->init && !rsa->meth->init(rsa)) {
+  if (rsa->meth->init && !rsa->meth->init(rsa.get())) {
+    METHOD_unref(rsa->meth);
     rsa->meth = nullptr;
-    RSA_free(rsa);
     return nullptr;
   }
 
-  return rsa;
+  return rsa.release();
 }
 
 RSA *RSA_new_method_no_e(const ENGINE *engine, const BIGNUM *n) {
@@ -207,9 +204,6 @@ RSA *RSA_new_method_no_e(const ENGINE *engine, const BIGNUM *n) {
 }
 
 RSAImpl::~RSAImpl() {
-  // Refcount can be 1 if called by UniquePtr, and 0 if called by RSA_free.
-  BSSL_CHECK(references.load() <= 1);
-
   if (meth != nullptr && meth->finish != nullptr) {
     meth->finish(this);
   }
@@ -226,7 +220,6 @@ RSAImpl::~RSAImpl() {
   BN_free(dmq1);
   BN_free(iqmp);
   rsa_invalidate_key(this);
-  CRYPTO_MUTEX_cleanup(&lock);
 }
 
 void RSA_free(RSA *rsa) {
@@ -235,15 +228,12 @@ void RSA_free(RSA *rsa) {
   }
 
   auto *impl = FromOpaque(rsa);
-  if (!CRYPTO_refcount_dec_and_test_zero(&impl->references)) {
-    return;
-  }
-  Delete(impl);
+  impl->DecRefInternal();
 }
 
 int RSA_up_ref(RSA *rsa) {
   auto *impl = FromOpaque(rsa);
-  CRYPTO_refcount_inc(&impl->references);
+  impl->UpRefInternal();
   return 1;
 }
 
@@ -418,7 +408,7 @@ static int rsa_sign_raw_no_self_test(RSA *rsa, size_t *out_len, uint8_t *out,
 
 int RSA_sign_raw(RSA *rsa, size_t *out_len, uint8_t *out, size_t max_out,
                  const uint8_t *in, size_t in_len, int padding) {
-  boringssl_ensure_rsa_self_test();
+  boringssl_ensure_rsa_sign_self_test();
   return rsa_sign_raw_no_self_test(rsa, out_len, out, max_out, in, in_len,
                                    padding);
 }
@@ -643,7 +633,7 @@ err:
 
 int RSA_sign(int hash_nid, const uint8_t *digest, size_t digest_len,
              uint8_t *out, unsigned *out_len, RSA *rsa) {
-  boringssl_ensure_rsa_self_test();
+  boringssl_ensure_rsa_sign_self_test();
 
   return rsa_sign_no_self_test(hash_nid, digest, digest_len, out, out_len, rsa);
 }
@@ -723,7 +713,7 @@ out:
 
 int RSA_verify(int hash_nid, const uint8_t *digest, size_t digest_len,
                const uint8_t *sig, size_t sig_len, RSA *rsa) {
-  boringssl_ensure_rsa_self_test();
+  boringssl_ensure_rsa_verify_self_test();
   return rsa_verify_no_self_test(hash_nid, digest, digest_len, sig, sig_len,
                                  rsa);
 }
@@ -1033,7 +1023,7 @@ int bssl::rsa_private_transform_no_self_test(RSA *rsa, uint8_t *out,
 
 int bssl::rsa_private_transform(RSA *rsa, uint8_t *out, const uint8_t *in,
                                 size_t len) {
-  boringssl_ensure_rsa_self_test();
+  boringssl_ensure_rsa_sign_self_test();
   return rsa_private_transform_no_self_test(rsa, out, in, len);
 }
 
